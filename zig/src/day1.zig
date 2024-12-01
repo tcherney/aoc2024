@@ -33,7 +33,6 @@ const std = @import("std");
 
 // Your actual left and right lists contain many location IDs. What is the total distance between your lists?
 
-//TODO sort lists keep sum as abs
 pub fn part1(file_name: []const u8) !u64 {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
