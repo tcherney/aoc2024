@@ -33,9 +33,7 @@ const std = @import("std");
 
 // Your actual left and right lists contain many location IDs. What is the total distance between your lists?
 
-pub fn part1(file_name: []const u8) !u64 {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const allocator = gpa.allocator();
+pub fn part1(file_name: []const u8, allocator: std.mem.Allocator) !u64 {
     const f = try std.fs.cwd().openFile(file_name, .{});
     defer f.close();
     var list1 = std.ArrayList(i64).init(allocator);
@@ -62,9 +60,7 @@ pub fn part1(file_name: []const u8) !u64 {
     }
     list1.deinit();
     list2.deinit();
-    if (gpa.deinit() == .leak) {
-        std.debug.print("Leaked!\n", .{});
-    }
+
     return sum;
 }
 
@@ -93,7 +89,47 @@ pub fn part1(file_name: []const u8) !u64 {
 // So, for these example lists, the similarity score at the end of this process is 31 (9 + 4 + 0 + 0 + 9 + 9).
 
 // Once again consider your left and right lists. What is their similarity score?
-pub fn part2() !u64 {}
+pub fn part2(file_name: []const u8, allocator: std.mem.Allocator) !u64 {
+    const f = try std.fs.cwd().openFile(file_name, .{});
+    defer f.close();
+    var list1 = std.ArrayList(i64).init(allocator);
+    var list2 = std.ArrayList(i64).init(allocator);
+
+    var buf: [1024]u8 = undefined;
+    while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |line| {
+        //std.debug.print("line {any}\n", .{line});
+        std.mem.replaceScalar(u8, line, '\r', ' ');
+        var it = std.mem.tokenizeScalar(u8, line, ' ');
+        const num1 = it.next().?;
+        const num2 = it.next().?;
+        //std.debug.print("{any}\n", .{num1});
+        //std.debug.print("{any}\n", .{num2});
+        try list1.append(try std.fmt.parseInt(i64, num1, 10));
+        try list2.append(try std.fmt.parseInt(i64, num2, 10));
+    }
+    std.mem.sort(i64, list1.items, {}, comptime std.sort.asc(i64));
+    std.mem.sort(i64, list2.items, {}, comptime std.sort.asc(i64));
+    std.debug.print("size of input {d}, {d}\n", .{ list1.items.len, list2.items.len });
+    var similarity: u64 = 0;
+    for (0..list1.items.len) |i| {
+        var local_sim: u64 = 0;
+        for (0..list2.items.len) |j| {
+            if (list2.items[j] > list1.items[i]) break;
+            if (list2.items[j] == list1.items[i]) local_sim += 1;
+        }
+        similarity += local_sim * @as(u64, @bitCast(list1.items[i]));
+    }
+    list1.deinit();
+    list2.deinit();
+
+    return similarity;
+}
 test "day1" {
-    std.debug.print("Total distance between lists is: {d}\n", .{try part1("inputs/day1/input.txt")});
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const allocator = gpa.allocator();
+    std.debug.print("Total distance between lists is: {d}\n", .{try part1("inputs/day1/input.txt", allocator)});
+    std.debug.print("Total similarity between lists is: {d}\n", .{try part2("inputs/day1/input.txt", allocator)});
+    if (gpa.deinit() == .leak) {
+        std.debug.print("Leaked!\n", .{});
+    }
 }
