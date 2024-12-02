@@ -34,9 +34,53 @@ const std = @import("std");
 
 // Analyze the unusual data from the engineers. How many reports are safe?
 
+pub fn process_report(report: std.ArrayList(i64)) u64 {
+    var prev_num: i64 = report.items[0];
+    var increasing: ?bool = null;
+    for (1..report.items.len) |i| {
+        const diff = @abs(prev_num - report.items[i]);
+        if (diff > 3 or diff < 1) return 0;
+        if (increasing == null) {
+            if (report.items[i] > prev_num) {
+                increasing = true;
+            } else if (report.items[i] < prev_num) {
+                increasing = false;
+            } else {
+                return 0;
+            }
+        } else {
+            if (increasing.? and report.items[i] <= prev_num) {
+                return 0;
+            }
+            if (!increasing.? and report.items[i] >= prev_num) {
+                return 0;
+            }
+        }
+        prev_num = report.items[i];
+    }
+    return 1;
+}
+
 pub fn part1(file_name: []const u8, allocator: std.mem.Allocator) !u64 {
-    _ = file_name;
-    _ = allocator;
+    const f = try std.fs.cwd().openFile(file_name, .{});
+    defer f.close();
+    var report = std.ArrayList(i64).init(allocator);
+
+    var buf: [1024]u8 = undefined;
+    var safe_reports: u64 = 0;
+    while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |line| {
+        std.mem.replaceScalar(u8, line, '\r', ' ');
+        var it = std.mem.tokenizeScalar(u8, line, ' ');
+        while (it.next()) |num| {
+            try report.append(try std.fmt.parseInt(i64, num, 10));
+        }
+        safe_reports += process_report(report);
+        report.clearRetainingCapacity();
+    }
+
+    report.deinit();
+
+    return safe_reports;
 }
 
 // --- Part Two ---
@@ -59,13 +103,41 @@ pub fn part1(file_name: []const u8, allocator: std.mem.Allocator) !u64 {
 // Update your analysis by handling situations where the Problem Dampener can remove a single level from unsafe reports. How many reports are now safe?
 
 pub fn part2(file_name: []const u8, allocator: std.mem.Allocator) !u64 {
-    _ = file_name;
-    _ = allocator;
+    const f = try std.fs.cwd().openFile(file_name, .{});
+    defer f.close();
+    var report = std.ArrayList(i64).init(allocator);
+
+    var buf: [1024]u8 = undefined;
+    var safe_reports: u64 = 0;
+    while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |line| {
+        std.mem.replaceScalar(u8, line, '\r', ' ');
+        var it = std.mem.tokenizeScalar(u8, line, ' ');
+        while (it.next()) |num| {
+            try report.append(try std.fmt.parseInt(i64, num, 10));
+        }
+        var report_res = process_report(report);
+        if (report_res == 0) {
+            for (0..report.items.len) |i| {
+                var report_copy = try report.clone();
+                defer report_copy.deinit();
+                _ = report_copy.orderedRemove(i);
+                report_res = process_report(report_copy);
+                if (report_res == 1) break;
+            }
+        }
+        safe_reports += report_res;
+        report.clearRetainingCapacity();
+    }
+
+    report.deinit();
+
+    return safe_reports;
 }
-test "day1" {
+test "day2" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
-    _ = allocator;
+    std.debug.print("Number of safe reports {d}\n", .{try part1("inputs/day2/input.txt", allocator)});
+    std.debug.print("Number of safe reports with fault tolerance {d}\n", .{try part2("inputs/day2/input.txt", allocator)});
     if (gpa.deinit() == .leak) {
         std.debug.print("Leaked!\n", .{});
     }
