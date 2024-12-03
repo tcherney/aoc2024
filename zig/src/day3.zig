@@ -53,7 +53,7 @@ pub fn part1(file_name: []const u8, allocator: std.mem.Allocator) !u64 {
             const first_num = try std.fmt.parseInt(u64, first_num_string.items, 10);
             const second_num = try std.fmt.parseInt(u64, second_num_string.items, 10);
             result += first_num * second_num;
-            std.debug.print("mul({d},{d})\n", .{ first_num, second_num });
+            //std.debug.print("mul({d},{d})\n", .{ first_num, second_num });
         }
     }
 
@@ -77,14 +77,99 @@ pub fn part1(file_name: []const u8, allocator: std.mem.Allocator) !u64 {
 // This time, the sum of the results is 48 (2*4 + 8*5).
 
 // Handle the new instructions; what do you get if you add up all of the results of just the enabled multiplications?
+pub fn find_do(line: []const u8, start_index: usize) usize {
+    return std.mem.indexOfPos(u8, line, start_index, "do()") orelse line.len;
+}
+pub fn find_dont(line: []const u8, start_index: usize) usize {
+    return std.mem.indexOfPos(u8, line, start_index, "don't()") orelse line.len;
+}
+
+pub const Range = struct {
+    start: usize,
+    end: usize,
+};
+
 pub fn part2(file_name: []const u8, allocator: std.mem.Allocator) !u64 {
-    _ = file_name;
-    _ = allocator;
+    const f = try std.fs.cwd().openFile(file_name, .{});
+    defer f.close();
+    var first_num_string = std.ArrayList(u8).init(allocator);
+    var second_num_string = std.ArrayList(u8).init(allocator);
+    defer first_num_string.deinit();
+    defer second_num_string.deinit();
+    var buf: [4096]u8 = undefined;
+    var result: u64 = 0;
+    var active = true;
+    while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |line| {
+        var enabled_range: Range = undefined;
+        if (active) {
+            enabled_range.start = 0;
+        } else {
+            enabled_range.start = find_do(line, 0);
+        }
+        if (enabled_range.start == line.len) {
+            active = false;
+            continue;
+        }
+        enabled_range.end = find_dont(line, enabled_range.start);
+        //std.debug.print("initial range {any}\n", .{enabled_range});
+        var line_index: u64 = enabled_range.start;
+        while (std.mem.indexOfPos(u8, line, line_index, "mul(")) |indx| {
+            var in_range = true;
+            line_index = indx + 4;
+            if (indx < enabled_range.start) continue;
+            while (!(indx > enabled_range.start and indx < enabled_range.end)) {
+                enabled_range.start = find_do(line, enabled_range.end);
+                if (enabled_range.start == line.len) {
+                    in_range = false;
+                    break;
+                }
+                enabled_range.end = find_dont(line, enabled_range.start);
+                //std.debug.print("updated range {any} current indx {d} line len {d}\n", .{ enabled_range, indx, line.len });
+                if (indx < enabled_range.start) {
+                    in_range = false;
+                    break;
+                }
+            }
+
+            if (!in_range) continue;
+            //std.debug.print("in range {any} current indx {d} line len {d}\n", .{ enabled_range, indx, line.len });
+            //std.debug.print("found at {any}\n", .{indx});
+            defer first_num_string.clearRetainingCapacity();
+            defer second_num_string.clearRetainingCapacity();
+            while (line[line_index] >= 48 and line[line_index] <= 57) {
+                //std.debug.print("adding {c} to first num\n", .{line[line_index]});
+                try first_num_string.append(line[line_index]);
+                line_index += 1;
+            }
+            //std.debug.print("next char {c}\n", .{line[line_index]});
+            if (line[line_index] != ',') continue;
+            line_index += 1;
+            while (line[line_index] >= 48 and line[line_index] <= 57) {
+                //std.debug.print("adding {c} to second num\n", .{line[line_index]});
+                try second_num_string.append(line[line_index]);
+                line_index += 1;
+            }
+            if (line[line_index] != ')') continue;
+            line_index += 1;
+            const first_num = try std.fmt.parseInt(u64, first_num_string.items, 10);
+            const second_num = try std.fmt.parseInt(u64, second_num_string.items, 10);
+            result += first_num * second_num;
+            //std.debug.print("mul({d},{d}) indx {d}\n", .{ first_num, second_num, indx });
+        }
+        if (enabled_range.end == line.len and enabled_range.start != line.len) {
+            active = true;
+        } else {
+            active = false;
+        }
+    }
+
+    return result;
 }
 test "day3" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
     std.debug.print("Multiplication result {d}\n", .{try part1("inputs/day3/input.txt", allocator)});
+    std.debug.print("Multiplication result do/dont {d}\n", .{try part2("inputs/day3/input.txt", allocator)});
     if (gpa.deinit() == .leak) {
         std.debug.print("Leaked!\n", .{});
     }
