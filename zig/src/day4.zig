@@ -149,15 +149,41 @@ pub fn part1(file_name: []const u8, allocator: std.mem.Allocator) !u64 {
 // In this example, an X-MAS appears 9 times.
 
 // Flip the word search from the instructions back over to the word search side and try again. How many times does an X-MAS appear?
-//TODO  center search around the middle A search the corners for the 4 possible configurations
 pub fn part2(file_name: []const u8, allocator: std.mem.Allocator) !u64 {
-    _ = file_name;
-    _ = allocator;
+    const f = try std.fs.cwd().openFile(file_name, .{});
+    defer f.close();
+    var word_search = std.ArrayList(u8).init(allocator);
+    defer word_search.deinit();
+    var width: usize = undefined;
+    var buf: [4096]u8 = undefined;
+    var result: u64 = 0;
+    while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |line| {
+        width = line.len;
+        try word_search.appendSlice(line);
+    }
+    const height = word_search.items.len / width;
+    var indx: usize = 0;
+    while (indx < word_search.items.len) {
+        const search_pos = std.mem.indexOfScalarPos(u8, word_search.items, indx, 'A');
+        if (search_pos) |pos| {
+            indx = pos + 1;
+            const xy = indx_to_x_y(pos, width);
+            if (xy.x >= 1 and xy.y >= 1 and xy.x + 1 < width and xy.y + 1 < height) {
+                if ((word_search.items[(xy.y - 1) * width + xy.x - 1] == 'M' and word_search.items[(xy.y + 1) * width + xy.x + 1] == 'S') or (word_search.items[(xy.y - 1) * width + xy.x - 1] == 'S' and word_search.items[(xy.y + 1) * width + xy.x + 1] == 'M')) {
+                    if ((word_search.items[(xy.y + 1) * width + xy.x - 1] == 'M' and word_search.items[(xy.y - 1) * width + xy.x + 1] == 'S') or (word_search.items[(xy.y + 1) * width + xy.x - 1] == 'S' and word_search.items[(xy.y - 1) * width + xy.x + 1] == 'M')) {
+                        result += 1;
+                    }
+                }
+            }
+        } else break;
+    }
+    return result;
 }
 test "day4" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
     std.debug.print("XMAS appears {d} times\n", .{try part1("inputs/day4/input.txt", allocator)});
+    std.debug.print("X-MAS appears {d} times\n", .{try part2("inputs/day4/input.txt", allocator)});
     if (gpa.deinit() == .leak) {
         std.debug.print("Leaked!\n", .{});
     }
