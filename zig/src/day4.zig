@@ -61,10 +61,17 @@ pub fn part1(file_name: []const u8, allocator: std.mem.Allocator) !u64 {
     var buf: [4096]u8 = undefined;
     var result: u64 = 0;
     while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |line| {
-        width = line.len;
-        try word_search.appendSlice(line);
+        if (std.mem.indexOfScalar(u8, line, '\r')) |indx| {
+            const carriage_less = line[0..indx];
+            width = carriage_less.len;
+            try word_search.appendSlice(carriage_less);
+        } else {
+            width = line.len;
+            try word_search.appendSlice(line);
+        }
     }
     const height = word_search.items.len / width;
+    //std.debug.print("len {d} width {d} height {d}\n", .{ word_search.items.len, width, height });
     var indx: usize = 0;
     while (indx < word_search.items.len) {
         const search_pos = std.mem.indexOfScalarPos(u8, word_search.items, indx, 'X');
@@ -158,8 +165,14 @@ pub fn part2(file_name: []const u8, allocator: std.mem.Allocator) !u64 {
     var buf: [4096]u8 = undefined;
     var result: u64 = 0;
     while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |line| {
-        width = line.len;
-        try word_search.appendSlice(line);
+        if (std.mem.indexOfScalar(u8, line, '\r')) |indx| {
+            const carriage_less = line[0..indx];
+            width = carriage_less.len;
+            try word_search.appendSlice(carriage_less);
+        } else {
+            width = line.len;
+            try word_search.appendSlice(line);
+        }
     }
     const height = word_search.items.len / width;
     var indx: usize = 0;
