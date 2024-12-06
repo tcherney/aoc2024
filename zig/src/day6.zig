@@ -91,6 +91,26 @@ const std = @import("std");
 pub const Index = struct {
     x: usize,
     y: usize,
+    pub fn cmp(self: *Index, other: Index) bool {
+        return self.x == other.x and self.y == other.y;
+    }
+};
+
+pub const Node = struct {
+    val: u8 = '.',
+    visited: bool = false,
+    pub fn update(self: *Node, guard_symbol: u8) bool {
+        if (!self.visited or (self.visited and self.val != guard_symbol)) {
+            self.visited = true;
+            self.val = guard_symbol;
+        }
+        // visited location again going same direction, we have cycle
+        else if (self.visited and self.val == guard_symbol) {
+            //std.debug.print("cycle detected\n", .{});
+            return true;
+        }
+        return false;
+    }
 };
 
 pub fn indx_to_x_y(indx: usize, width: usize) Index {
@@ -184,16 +204,207 @@ pub fn part1(file_name: []const u8, allocator: std.mem.Allocator) !u64 {
     return std.mem.count(u8, map.items, "X");
 }
 
+// --- Part Two ---
+// While The Historians begin working around the guard's patrol route, you borrow their fancy device and step outside the lab. From the safety of a supply closet, you time travel through the last few months and record the nightly status of the lab's guard post on the walls of the closet.
+
+// Returning after what seems like only a few seconds to The Historians, they explain that the guard's patrol area is simply too large for them to safely search the lab without getting caught.
+
+// Fortunately, they are pretty sure that adding a single new obstruction won't cause a time paradox. They'd like to place the new obstruction in such a way that the guard will get stuck in a loop, making the rest of the lab safe to search.
+
+// To have the lowest chance of creating a time paradox, The Historians would like to know all of the possible positions for such an obstruction. The new obstruction can't be placed at the guard's starting position - the guard is there right now and would notice.
+
+// In the above example, there are only 6 different positions where a new obstruction would cause the guard to get stuck in a loop. The diagrams of these six situations use O to mark the new obstruction, | to show a position where the guard moves up/down, - to show a position where the guard moves left/right, and + to show a position where the guard moves both up/down and left/right.
+
+// Option one, put a printing press next to the guard's starting position:
+
+// ....#.....
+// ....+---+#
+// ....|...|.
+// ..#.|...|.
+// ....|..#|.
+// ....|...|.
+// .#.O^---+.
+// ........#.
+// #.........
+// ......#...
+// Option two, put a stack of failed suit prototypes in the bottom right quadrant of the mapped area:
+
+// ....#.....
+// ....+---+#
+// ....|...|.
+// ..#.|...|.
+// ..+-+-+#|.
+// ..|.|.|.|.
+// .#+-^-+-+.
+// ......O.#.
+// #.........
+// ......#...
+// Option three, put a crate of chimney-squeeze prototype fabric next to the standing desk in the bottom right quadrant:
+
+// ....#.....
+// ....+---+#
+// ....|...|.
+// ..#.|...|.
+// ..+-+-+#|.
+// ..|.|.|.|.
+// .#+-^-+-+.
+// .+----+O#.
+// #+----+...
+// ......#...
+// Option four, put an alchemical retroencabulator near the bottom left corner:
+
+// ....#.....
+// ....+---+#
+// ....|...|.
+// ..#.|...|.
+// ..+-+-+#|.
+// ..|.|.|.|.
+// .#+-^-+-+.
+// ..|...|.#.
+// #O+---+...
+// ......#...
+// Option five, put the alchemical retroencabulator a bit to the right instead:
+
+// ....#.....
+// ....+---+#
+// ....|...|.
+// ..#.|...|.
+// ..+-+-+#|.
+// ..|.|.|.|.
+// .#+-^-+-+.
+// ....|.|.#.
+// #..O+-+...
+// ......#...
+// Option six, put a tank of sovereign glue right next to the tank of universal solvent:
+
+// ....#.....
+// ....+---+#
+// ....|...|.
+// ..#.|...|.
+// ..+-+-+#|.
+// ..|.|.|.|.
+// .#+-^-+-+.
+// .+----++#.
+// #+----++..
+// ......#O..
+// It doesn't really matter what you choose to use as an obstacle so long as you and The Historians can put it into position without the guard noticing. The important thing is having enough options that you can find one that minimizes time paradoxes, and in this example, there are 6 different positions you could choose.
+
+// You need to get the guard stuck in a loop by adding a single new obstruction. How many different positions could you choose for this obstruction?
+
 pub fn part2(file_name: []const u8, allocator: std.mem.Allocator) !u64 {
-    _ = file_name;
-    _ = allocator;
-    return 0;
+    const f = try std.fs.cwd().openFile(file_name, .{});
+    defer f.close();
+    var map = std.ArrayList(u8).init(allocator);
+    defer map.deinit();
+    var width: usize = undefined;
+    var buf: [4096]u8 = undefined;
+    while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |line| {
+        if (std.mem.indexOfScalar(u8, line, '\r')) |indx| {
+            const carriage_less = line[0..indx];
+            width = carriage_less.len;
+            try map.appendSlice(carriage_less);
+        } else {
+            width = line.len;
+            try map.appendSlice(line);
+        }
+    }
+    const height = map.items.len / width;
+    var result: usize = 0;
+    var nodes: std.ArrayList(Node) = std.ArrayList(Node).init(allocator);
+    for (0..map.items.len) |_| {
+        try nodes.append(Node{});
+    }
+    defer nodes.deinit();
+    for (0..map.items.len) |i| {
+        if (map.items[i] != '.') continue;
+        //std.debug.print("placing obstruction at {d}\n", .{i});
+        for (0..nodes.items.len) |j| {
+            nodes.items[j].visited = false;
+            nodes.items[j].val = '.';
+        }
+        var cycle_detected = false;
+        var map_copy = try map.clone();
+        map_copy.items[i] = '#';
+        defer map_copy.deinit();
+        if (std.mem.indexOfScalar(u8, map_copy.items, '^')) |indx| {
+            var guard_loc = indx_to_x_y(indx, width);
+            var inbounds = true;
+            var guard_symbol: u8 = '^';
+            while (inbounds and !cycle_detected) {
+                // for (0..height) |j| {
+                //     for (0..width) |k| {
+                //         std.debug.print("{c}", .{map_copy.items[j * width + k]});
+                //     }
+                //     std.debug.print("\n", .{});
+                // }
+                // std.debug.print("\n", .{});
+                var current_node = &nodes.items[x_y_to_indx(guard_loc, width)];
+                switch (guard_symbol) {
+                    '^' => {
+                        if (guard_loc.y == 0) {
+                            map_copy.items[x_y_to_indx(guard_loc, width)] = 'X';
+                            inbounds = false;
+                        } else if (map_copy.items[(guard_loc.y - 1) * width + guard_loc.x] == '#') {
+                            guard_symbol = '>';
+                        } else {
+                            map_copy.items[x_y_to_indx(guard_loc, width)] = 'X';
+                            cycle_detected = current_node.update(guard_symbol);
+                            guard_loc.y -= 1;
+                            guard_symbol = '^';
+                        }
+                    },
+                    'v' => {
+                        if (guard_loc.y + 1 >= height) {
+                            map_copy.items[x_y_to_indx(guard_loc, width)] = 'X';
+                            inbounds = false;
+                        } else if (map_copy.items[(guard_loc.y + 1) * width + guard_loc.x] == '#') {
+                            guard_symbol = '<';
+                        } else {
+                            map_copy.items[x_y_to_indx(guard_loc, width)] = 'X';
+                            cycle_detected = current_node.update(guard_symbol);
+                            guard_loc.y += 1;
+                            guard_symbol = 'v';
+                        }
+                    },
+                    '>' => {
+                        if (guard_loc.x + 1 >= width) {
+                            map_copy.items[x_y_to_indx(guard_loc, width)] = 'X';
+                            inbounds = false;
+                        } else if (map_copy.items[(guard_loc.y) * width + guard_loc.x + 1] == '#') {
+                            guard_symbol = 'v';
+                        } else {
+                            map_copy.items[x_y_to_indx(guard_loc, width)] = 'X';
+                            cycle_detected = current_node.update(guard_symbol);
+                            guard_loc.x += 1;
+                            guard_symbol = '>';
+                        }
+                    },
+                    '<' => {
+                        if (guard_loc.x == 0) {
+                            map_copy.items[x_y_to_indx(guard_loc, width)] = 'X';
+                            inbounds = false;
+                        } else if (map_copy.items[(guard_loc.y) * width + guard_loc.x - 1] == '#') {
+                            guard_symbol = '^';
+                        } else {
+                            map_copy.items[x_y_to_indx(guard_loc, width)] = 'X';
+                            cycle_detected = current_node.update(guard_symbol);
+                            guard_loc.x -= 1;
+                            guard_symbol = '<';
+                        }
+                    },
+                    else => unreachable,
+                }
+                if (cycle_detected) result += 1;
+            }
+        }
+    }
+    return result;
 }
 test "day6" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
     std.debug.print("Number of distinct positions {d}\n", .{try part1("inputs/day6/input.txt", allocator)});
-    std.debug.print("{d}\n", .{try part2("inputs/day6/input.txt", allocator)});
+    std.debug.print("Number of positions for obstruction {d}\n", .{try part2("inputs/day6/input.txt", allocator)});
     if (gpa.deinit() == .leak) {
         std.debug.print("Leaked!\n", .{});
     }
