@@ -144,6 +144,7 @@ pub fn part1(file_name: []const u8, allocator: std.mem.Allocator) !u64 {
 pub const CalcTreeP2 = struct {
     head: *Node,
     allocator: std.mem.Allocator,
+    has_solution: bool = false,
     pub const Node = struct {
         val: u64,
         left: ?*Node,
@@ -173,49 +174,42 @@ pub const CalcTreeP2 = struct {
         self.allocator.destroy(self.head);
     }
     var num_buf: [1024]u8 = undefined;
-    pub fn add_node(target_val: u64, val: u64, nums: []u64, allocator: std.mem.Allocator) !*Node {
+    pub fn add_node(self: *CalcTreeP2, target_val: u64, val: u64, nums: []u64, allocator: std.mem.Allocator) !*Node {
         var ret = try allocator.create(Node);
         ret.* = Node.init(val);
-        if (nums.len > 1 and val <= target_val) {
-            ret.left = try add_node(target_val, ret.val + nums[0], nums[1..], allocator);
-            ret.middle = try add_node(target_val, try std.fmt.parseInt(u64, try std.fmt.bufPrint(&num_buf, "{d}{d}", .{ ret.val, nums[0] }), 10), nums[1..], allocator);
-            ret.right = try add_node(target_val, ret.val * nums[0], nums[1..], allocator);
-        } else if (nums.len == 1 and val <= target_val) {
-            ret.left = try allocator.create(Node);
-            ret.middle = try allocator.create(Node);
-            ret.right = try allocator.create(Node);
-            ret.left.?.* = Node.init(ret.val + nums[0]);
-            ret.middle.?.* = Node.init(try std.fmt.parseInt(u64, try std.fmt.bufPrint(&num_buf, "{d}{d}", .{ ret.val, nums[0] }), 10));
-            ret.right.?.* = Node.init(ret.val * nums[0]);
+        if (!self.has_solution and nums.len > 1 and val <= target_val) {
+            ret.left = try self.add_node(target_val, ret.val + nums[0], nums[1..], allocator);
+            ret.middle = try self.add_node(target_val, try std.fmt.parseInt(u64, try std.fmt.bufPrint(&num_buf, "{d}{d}", .{ ret.val, nums[0] }), 10), nums[1..], allocator);
+            ret.right = try self.add_node(target_val, ret.val * nums[0], nums[1..], allocator);
+        } else if (!self.has_solution and nums.len == 1 and val <= target_val) {
+            self.has_solution = (ret.val + nums[0] == target_val) or (ret.val * nums[0] == target_val) or (try std.fmt.parseInt(u64, try std.fmt.bufPrint(&num_buf, "{d}{d}", .{ ret.val, nums[0] }), 10) == target_val);
+            if (self.has_solution) {
+                //std.debug.print("found solution for {d}\n", .{target_val});
+            }
+        } else if (!self.has_solution and nums.len == 0) {
+            self.has_solution = ret.val == target_val;
         }
         return ret;
     }
-    pub fn build_tree(target_val: u64, nums: []u64, allocator: std.mem.Allocator) !CalcTreeP2 {
+    pub fn build_tree(target_val: u64, nums: []u64, allocator: std.mem.Allocator) !bool {
         var head = try allocator.create(Node);
-        head.* = Node.init(nums[0]);
-        head.left = try add_node(target_val, head.val + nums[1], nums[2..], allocator);
-        head.middle = try add_node(target_val, try std.fmt.parseInt(u64, try std.fmt.bufPrint(&num_buf, "{d}{d}", .{ head.val, nums[1] }), 10), nums[2..], allocator);
-        head.right = try add_node(target_val, head.val * nums[1], nums[2..], allocator);
-        return .{
+        var tree = CalcTreeP2{
             .head = head,
             .allocator = allocator,
+            .has_solution = false,
         };
-    }
-    pub fn has_solution(self: *CalcTreeP2, target_val: u64, current_node: *Node) bool {
-        if (current_node.left == null and current_node.middle == null and current_node.right == null) {
-            if (current_node.val == target_val) return true;
-            return false;
-        }
-        return self.has_solution(target_val, current_node.left.?) or self.has_solution(target_val, current_node.middle.?) or self.has_solution(target_val, current_node.right.?);
+        head.* = Node.init(nums[0]);
+        head.left = try tree.add_node(target_val, head.val + nums[1], nums[2..], allocator);
+        head.middle = try tree.add_node(target_val, try std.fmt.parseInt(u64, try std.fmt.bufPrint(&num_buf, "{d}{d}", .{ head.val, nums[1] }), 10), nums[2..], allocator);
+        head.right = try tree.add_node(target_val, head.val * nums[1], nums[2..], allocator);
+        const result = tree.has_solution;
+        tree.deinit();
+        return result;
     }
 };
 
 pub fn solve_equation_p2(res: u64, nums: []u64, allocator: std.mem.Allocator) !bool {
-    var tree = try CalcTreeP2.build_tree(res, nums, allocator);
-    const ret = tree.has_solution(res, tree.head);
-    //std.debug.print("{any}\n", .{tree});
-    tree.deinit();
-    return ret;
+    return try CalcTreeP2.build_tree(res, nums, allocator);
 }
 pub fn part2(file_name: []const u8, allocator: std.mem.Allocator) !u64 {
     const f = try std.fs.cwd().openFile(file_name, .{});
