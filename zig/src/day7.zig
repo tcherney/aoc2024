@@ -141,17 +141,117 @@ pub fn part1(file_name: []const u8, allocator: std.mem.Allocator) !u64 {
 // Adding up all six test values (the three that could be made before using only + and * plus the new three that can now be made by also using ||) produces the new total calibration result of 11387.
 
 // Using your new knowledge of elephant hiding spots, determine which equations could possibly be true. What is their total calibration result?
+//TODO mod calc tree to be a tertiary tree with middle being concat, everything else should be fine to keep
+pub const CalcTreeP2 = struct {
+    head: *Node,
+    allocator: std.mem.Allocator,
+    pub const Node = struct {
+        val: u64,
+        left: ?*Node,
+        middle: ?*Node,
+        right: ?*Node,
+        pub fn init(val: u64) Node {
+            return .{
+                .val = val,
+                .left = null,
+                .middle = null,
+                .right = null,
+            };
+        }
+    };
+    pub fn deinit_node(node: ?*Node, allocator: std.mem.Allocator) void {
+        if (node) |parent| {
+            deinit_node(parent.left, allocator);
+            deinit_node(parent.middle, allocator);
+            deinit_node(parent.right, allocator);
+            allocator.destroy(parent);
+        }
+    }
+    pub fn deinit(self: *CalcTreeP2) void {
+        deinit_node(self.head.left, self.allocator);
+        deinit_node(self.head.middle, self.allocator);
+        deinit_node(self.head.right, self.allocator);
+        self.allocator.destroy(self.head);
+    }
+    var num_buf: [1024]u8 = undefined;
+    pub fn add_node(target_val: u64, val: u64, nums: []u64, allocator: std.mem.Allocator) !*Node {
+        var ret = try allocator.create(Node);
+        ret.* = Node.init(val);
+        if (nums.len > 1) {
+            ret.left = try add_node(target_val, ret.val + nums[0], nums[1..], allocator);
+            ret.middle = try add_node(target_val, try std.fmt.parseInt(u64, try std.fmt.bufPrint(&num_buf, "{d}{d}", .{ ret.val, nums[0] }), 10), nums[1..], allocator);
+            ret.right = try add_node(target_val, ret.val * nums[0], nums[1..], allocator);
+        } else if (nums.len == 1) {
+            ret.left = try allocator.create(Node);
+            ret.middle = try allocator.create(Node);
+            ret.right = try allocator.create(Node);
+            ret.left.?.* = Node.init(ret.val + nums[0]);
+            ret.middle.?.* = Node.init(try std.fmt.parseInt(u64, try std.fmt.bufPrint(&num_buf, "{d}{d}", .{ ret.val, nums[0] }), 10));
+            ret.right.?.* = Node.init(ret.val * nums[0]);
+        }
+        return ret;
+    }
+    pub fn build_tree(target_val: u64, nums: []u64, allocator: std.mem.Allocator) !CalcTreeP2 {
+        var head = try allocator.create(Node);
+        head.* = Node.init(nums[0]);
+        head.left = try add_node(target_val, head.val + nums[1], nums[2..], allocator);
+        head.middle = try add_node(target_val, try std.fmt.parseInt(u64, try std.fmt.bufPrint(&num_buf, "{d}{d}", .{ head.val, nums[1] }), 10), nums[2..], allocator);
+        head.right = try add_node(target_val, head.val * nums[1], nums[2..], allocator);
+        return .{
+            .head = head,
+            .allocator = allocator,
+        };
+    }
+    pub fn has_solution(self: *CalcTreeP2, target_val: u64, current_node: *Node) bool {
+        if (current_node.left == null and current_node.middle == null and current_node.right == null) {
+            if (current_node.val == target_val) return true;
+            return false;
+        }
+        return self.has_solution(target_val, current_node.left.?) or self.has_solution(target_val, current_node.middle.?) or self.has_solution(target_val, current_node.right.?);
+    }
+};
 
+pub fn solve_equation_p2(res: u64, nums: []u64, allocator: std.mem.Allocator) !bool {
+    var tree = try CalcTreeP2.build_tree(res, nums, allocator);
+    const ret = tree.has_solution(res, tree.head);
+    //std.debug.print("{any}\n", .{tree});
+    tree.deinit();
+    return ret;
+}
 pub fn part2(file_name: []const u8, allocator: std.mem.Allocator) !u64 {
-    _ = file_name;
-    _ = allocator;
-    return 0;
+    const f = try std.fs.cwd().openFile(file_name, .{});
+    defer f.close();
+    var map = std.ArrayList(u8).init(allocator);
+    defer map.deinit();
+    var buf: [4096]u8 = undefined;
+    var nums: std.ArrayList(u64) = std.ArrayList(u64).init(allocator);
+    defer nums.deinit();
+    var result: u64 = 0;
+    while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |line| {
+        var cleaned_line: []const u8 = undefined;
+        if (std.mem.indexOfScalar(u8, line, '\r')) |indx| {
+            cleaned_line = line[0..indx];
+        } else {
+            cleaned_line = line;
+        }
+        var it = std.mem.tokenizeScalar(u8, cleaned_line, ' ');
+        var calc_str = it.next().?;
+        calc_str = calc_str[0 .. calc_str.len - 1];
+        const calc_res = try std.fmt.parseInt(u64, calc_str, 10);
+        //std.debug.print("Result: {d}\n", .{calc_res});
+        nums.clearRetainingCapacity();
+        while (it.next()) |num_str| {
+            try nums.append(try std.fmt.parseInt(u64, num_str, 10));
+        }
+        if (try solve_equation_p2(calc_res, nums.items, allocator)) result += calc_res;
+    }
+    return result;
 }
 test "day7" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
     std.debug.print("Calibration result {d}\n", .{try part1("inputs/day7/input.txt", allocator)});
-    std.debug.print("{d}\n", .{try part2("inputs/day7/input.txt", allocator)});
+    std.debug.print("Calibration result concat {d}\n", .{try part2("inputs/day7/input.txt", allocator)});
     if (gpa.deinit() == .leak) {
         std.debug.print("Leaked!\n", .{});
     }
