@@ -60,10 +60,10 @@ pub const CalcTree = struct {
     pub fn add_node(target_val: u64, val: u64, nums: []u64, allocator: std.mem.Allocator) !*Node {
         var ret = try allocator.create(Node);
         ret.* = Node.init(val);
-        if (nums.len > 1) {
+        if (nums.len > 1 and val <= target_val) {
             ret.left = try add_node(target_val, ret.val + nums[0], nums[1..], allocator);
             ret.right = try add_node(target_val, ret.val * nums[0], nums[1..], allocator);
-        } else if (nums.len == 1) {
+        } else if (nums.len == 1 and val <= target_val) {
             ret.left = try allocator.create(Node);
             ret.right = try allocator.create(Node);
             ret.left.?.* = Node.init(ret.val + nums[0]);
@@ -141,7 +141,6 @@ pub fn part1(file_name: []const u8, allocator: std.mem.Allocator) !u64 {
 // Adding up all six test values (the three that could be made before using only + and * plus the new three that can now be made by also using ||) produces the new total calibration result of 11387.
 
 // Using your new knowledge of elephant hiding spots, determine which equations could possibly be true. What is their total calibration result?
-//TODO mod calc tree to be a tertiary tree with middle being concat, everything else should be fine to keep
 pub const CalcTreeP2 = struct {
     head: *Node,
     allocator: std.mem.Allocator,
@@ -177,11 +176,11 @@ pub const CalcTreeP2 = struct {
     pub fn add_node(target_val: u64, val: u64, nums: []u64, allocator: std.mem.Allocator) !*Node {
         var ret = try allocator.create(Node);
         ret.* = Node.init(val);
-        if (nums.len > 1) {
+        if (nums.len > 1 and val <= target_val) {
             ret.left = try add_node(target_val, ret.val + nums[0], nums[1..], allocator);
             ret.middle = try add_node(target_val, try std.fmt.parseInt(u64, try std.fmt.bufPrint(&num_buf, "{d}{d}", .{ ret.val, nums[0] }), 10), nums[1..], allocator);
             ret.right = try add_node(target_val, ret.val * nums[0], nums[1..], allocator);
-        } else if (nums.len == 1) {
+        } else if (nums.len == 1 and val <= target_val) {
             ret.left = try allocator.create(Node);
             ret.middle = try allocator.create(Node);
             ret.right = try allocator.create(Node);
@@ -250,8 +249,9 @@ pub fn part2(file_name: []const u8, allocator: std.mem.Allocator) !u64 {
 test "day7" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
-    std.debug.print("Calibration result {d}\n", .{try part1("inputs/day7/input.txt", allocator)});
-    std.debug.print("Calibration result concat {d}\n", .{try part2("inputs/day7/input.txt", allocator)});
+    var timer = try std.time.Timer.start();
+    std.debug.print("Calibration result {d} in {d}ms\n", .{ try part1("inputs/day7/input.txt", allocator), timer.lap() / std.time.ns_per_ms });
+    std.debug.print("Calibration result concat {d} in {d}ms\n", .{ try part2("inputs/day7/input.txt", allocator), timer.lap() / std.time.ns_per_ms });
     if (gpa.deinit() == .leak) {
         std.debug.print("Leaked!\n", .{});
     }
