@@ -1,4 +1,7 @@
 
+import time
+
+
 def part1_rec_setup(target, nums):
     if (part1_rec(target, nums[0], nums[1:])):
         return target
@@ -13,6 +16,21 @@ def part1_rec(target, current, nums):
         else:
             return False
     return part1_rec(target, current + nums[0], nums[1:]) or part1_rec(target, current * nums[0], nums[1:])
+
+def part2_rec_setup(target, nums):
+    if (part2_rec(target, nums[0], nums[1:])):
+        return target
+    else:
+        return 0
+    
+
+def part2_rec(target, current, nums):
+    if len(nums) == 0:
+        if target == current:
+            return True
+        else:
+            return False
+    return part2_rec(target, current + nums[0], nums[1:]) or part2_rec(target, current * nums[0], nums[1:]) or part2_rec(target, int(str(current) + str(nums[0])), nums[1:])
 
 def part1_iterative(target, nums):
     not_found = True
@@ -34,22 +52,36 @@ def part1_iterative(target, nums):
         return target
 
 def part1():
-    with open("inputs/day7/test.txt", "r") as f:
+    with open("inputs/day7/input.txt", "r") as f:
         result = 0
-        for line in f.readlines():
+        start = time.time()
+        for line in f.read().splitlines():
             strings = line.split(" ")
             target = int(strings[0][:-1])
             nums = [int(x) for x in strings[1:]]
             result += part1_iterative(target,nums)
-        print(f"Calibration result {result}")
-    with open("inputs/day7/test.txt", "r") as f:
+        end = time.time()
+        print(f"Calibration result {result} in {end-start}s")
+    with open("inputs/day7/input.txt", "r") as f:
         result = 0
-        for line in f.readlines():
+        start = time.time()
+        for line in f.read().splitlines():
             strings = line.split(" ")
             target = int(strings[0][:-1])
             nums = [int(x) for x in strings[1:]]
             result += part1_rec_setup(target,nums)
-        print(f"Calibration result {result}")
+        end = time.time()
+        print(f"Calibration result {result} in {end-start}s")
+    with open("inputs/day7/input.txt", "r") as f:
+        result = 0
+        start = time.time()
+        for line in f.read().splitlines():
+            strings = line.split(" ")
+            target = int(strings[0][:-1])
+            nums = [int(x) for x in strings[1:]]
+            result += part2_rec_setup(target,nums)
+        end = time.time()
+        print(f"Calibration result with concat {result} in {end-start}s")
 
 if __name__ == "__main__":
     part1()
