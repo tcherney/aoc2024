@@ -80,16 +80,20 @@ pub fn part1(file_name: []const u8, allocator: std.mem.Allocator) !u64 {
                 //std.debug.print("{d} free space\n", .{free_space_len});
             }
         }
-        //std.debug.print("decompressed {any}\n", .{decompressed_in.items});
+        //std.debug.print("decompressed {any} len {d}\n", .{ decompressed_in.items, decompressed_in.items.len });
         current_index = decompressed_in.items.len - 1;
         // rotate
+        var loops: usize = 0;
+        var loop2: usize = 0;
         while (true) {
+            loops += 1;
             if (decompressed_in.items[current_index] == -1) {
                 current_index -= 1;
                 continue;
             }
             var swapped = false;
             for (0..current_index) |i| {
+                loop2 += 1;
                 if (decompressed_in.items[i] == -1) {
                     const tmp = decompressed_in.items[i];
                     decompressed_in.items[i] = decompressed_in.items[current_index];
@@ -101,6 +105,7 @@ pub fn part1(file_name: []const u8, allocator: std.mem.Allocator) !u64 {
             }
             if (!swapped) break;
         }
+        //std.debug.print("loops {d} loop2 {d}\n", .{ loops, loop2 });
         //std.debug.print("rotated {any}\n", .{decompressed_in.items});
         // checksum
         for (0..decompressed_in.items.len) |i| {
@@ -208,7 +213,7 @@ pub fn part2(file_name: []const u8, allocator: std.mem.Allocator) !u64 {
             if (num_same_id >= current_index) break;
             current_index -= num_same_id;
         }
-        //std.debug.print("rotated {any}\n", .{decompressed_in.items});
+        std.debug.print("rotated {any}\n", .{decompressed_in.items});
         // checksum
         for (0..decompressed_in.items.len) |i| {
             if (decompressed_in.items[i] == -1) continue;
@@ -222,8 +227,8 @@ test "day9" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
     var timer = try std.time.Timer.start();
-    std.debug.print("Filesystem checksum is {d} in {d}ms\n", .{ try part1("inputs/day9/input.txt", allocator), timer.lap() / std.time.ns_per_ms });
-    std.debug.print("Filesystem checksum is {d} in {d}ms\n", .{ try part2("inputs/day9/input.txt", allocator), timer.lap() / std.time.ns_per_ms });
+    std.debug.print("Filesystem checksum is {d} in {d}ms\n", .{ try part1("inputs/day9/matt.txt", allocator), timer.lap() / std.time.ns_per_ms });
+    std.debug.print("Filesystem checksum is {d} in {d}ms\n", .{ try part2("inputs/day9/matt.txt", allocator), timer.lap() / std.time.ns_per_ms });
     if (gpa.deinit() == .leak) {
         std.debug.print("Leaked!\n", .{});
     }
