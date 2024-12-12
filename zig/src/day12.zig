@@ -87,7 +87,6 @@ const colors: [6][]const u8 = .{
     "\x1B[93m",
     "\x1B[91m",
 };
-var current_color: usize = 0;
 const color_end = "\x1B[0m";
 var mapped: std.ArrayList(bool) = undefined;
 var map_width: usize = undefined;
