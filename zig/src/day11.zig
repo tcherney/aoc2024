@@ -97,34 +97,25 @@ pub const Score = struct {
 var score_cache: std.AutoHashMap(Score, u64) = undefined;
 pub fn score(n: u64, iterations: u64) !u64 {
     //std.debug.print("called with value {d} on iteration {d}\n", .{ n, iterations });
+    if (iterations == 0) {
+        return 1;
+    }
     const current_score = Score{ .stones = n, .iterations = iterations };
     var calc_val: u64 = undefined;
     if (!score_cache.contains(current_score)) {
         const num_as_string = try std.fmt.bufPrint(&num_buf, "{d}", .{n});
         if (n == 0) {
-            if (iterations == 0) {
-                calc_val = 1;
-            } else {
-                calc_val = try score(n + 1, iterations - 1);
-                //std.debug.print("returned path 3 value {d}, iteration {d}\n", .{ n, iterations });
-            }
+            calc_val = try score(n + 1, iterations - 1);
+            //std.debug.print("returned path 3 value {d}, iteration {d}\n", .{ n, iterations });
         } else if (num_as_string.len % 2 == 0) {
-            if (iterations == 0) {
-                calc_val = 1;
-            } else {
-                const left = try std.fmt.parseInt(u64, num_as_string[0 .. num_as_string.len / 2], 10);
-                const right = try std.fmt.parseInt(u64, num_as_string[num_as_string.len / 2 ..], 10);
-                //std.debug.print("splitting num {s} left {d} right {d}\n", .{ num_as_string, left, right });
-                calc_val = try score(left, iterations - 1) + try score(right, iterations - 1);
-                //std.debug.print("returned path 2 value {d}, iteration {d}\n", .{ n, iterations });
-            }
+            const left = try std.fmt.parseInt(u64, num_as_string[0 .. num_as_string.len / 2], 10);
+            const right = try std.fmt.parseInt(u64, num_as_string[num_as_string.len / 2 ..], 10);
+            //std.debug.print("splitting num {s} left {d} right {d}\n", .{ num_as_string, left, right });
+            calc_val = try score(left, iterations - 1) + try score(right, iterations - 1);
+            //std.debug.print("returned path 2 value {d}, iteration {d}\n", .{ n, iterations });
         } else {
-            if (iterations == 0) {
-                calc_val = 1;
-            } else {
-                calc_val = try score(n * 2024, iterations - 1);
-                //std.debug.print("returned path 3 value {d}, iteration {d}\n", .{ n, iterations });
-            }
+            calc_val = try score(n * 2024, iterations - 1);
+            //std.debug.print("returned path 3 value {d}, iteration {d}\n", .{ n, iterations });
         }
         try score_cache.put(current_score, calc_val);
     } else {
