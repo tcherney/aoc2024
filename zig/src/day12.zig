@@ -79,7 +79,16 @@ const std = @import("std");
 // So, it has a total price of 1930.
 
 // What is the total price of fencing all regions on your map?
-
+const colors: [6][]const u8 = .{
+    "\x1B[95m",
+    "\x1B[94m",
+    "\x1B[96m",
+    "\x1B[92m",
+    "\x1B[93m",
+    "\x1B[91m",
+};
+var current_color: usize = 0;
+const color_end = "\x1B[0m";
 var mapped: std.ArrayList(bool) = undefined;
 var map_width: usize = undefined;
 var map_height: usize = undefined;
@@ -101,6 +110,14 @@ pub const Region = struct {
             return @as(usize, @bitCast(loc.y)) * map_width + @as(usize, @bitCast(loc.x));
         }
     };
+    pub fn contains(self: *Region, indx: Location) bool {
+        for (0..self.nodes.items.len) |i| {
+            if (self.nodes.items[i].x == indx.x and self.nodes.items[i].y == indx.y) {
+                return true;
+            }
+        }
+        return false;
+    }
     pub fn init(allocator: std.mem.Allocator) Region {
         return .{
             .symbol = undefined,
@@ -433,6 +450,21 @@ pub fn part1(file_name: []const u8, allocator: std.mem.Allocator) !u64 {
             //std.debug.print("Region {c} with nodes {any}\n", .{ region.symbol, region.nodes });
         }
     }
+    for (0..map_height) |i| {
+        for (0..map_width) |j| {
+            const loc = Region.Location{
+                .x = @as(i64, @bitCast(j)),
+                .y = @as(i64, @bitCast(i)),
+            };
+            for (0..regions.items.len) |k| {
+                if (regions.items[k].contains(loc)) {
+                    std.debug.print("{s}{c}" ++ color_end, .{ colors[k % colors.len], map.items[i * map_width + j] });
+                }
+            }
+        }
+        std.debug.print("\n", .{});
+    }
+
     var result: u64 = 0;
     for (0..regions.items.len) |i| {
         result += regions.items[i].cost(map.items);
