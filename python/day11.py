@@ -1,4 +1,5 @@
 import functools
+import time
 
 @functools.cache
 def score(num, iterations):
@@ -11,16 +12,18 @@ def score(num, iterations):
         return score(int(num_str[0:len(num_str)//2]), iterations-1) + score(int(num_str[len(num_str)//2:]), iterations-1)
     else:
         return score(num*2024, iterations-1)
-    
 
-def day11(iterations):
+def day11(iterations, start):
     with open("inputs/day11/input.txt", "r") as f:
         result = 0
         for line in f.readlines():
             nums = [int(x) for x in line.split()]
             for num in nums:
                 result += score(num, iterations)
-        print(f"{result} stones after {iterations} blinks")
+        end = time.time()
+        print(f"{result} stones after {iterations} blinks in {end-start}s")
 
-day11(25)
-day11(75)
+start = time.time()
+day11(25,start)
+start = time.time()
+day11(75,start)
