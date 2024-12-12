@@ -79,13 +79,20 @@ const std = @import("std");
 // So, it has a total price of 1930.
 
 // What is the total price of fencing all regions on your map?
-const colors: [6][]const u8 = .{
-    "\x1B[95m",
-    "\x1B[94m",
-    "\x1B[96m",
+const colors: [13][]const u8 = .{
+    "\x1B[91m",
     "\x1B[92m",
     "\x1B[93m",
-    "\x1B[91m",
+    "\x1B[94m",
+    "\x1B[95m",
+    "\x1B[96m",
+    "\x1B[31m",
+    "\x1B[32m",
+    "\x1B[33m",
+    "\x1B[34m",
+    "\x1B[35m",
+    "\x1B[36m",
+    "\x1B[37m",
 };
 const color_end = "\x1B[0m";
 var mapped: std.ArrayList(bool) = undefined;
