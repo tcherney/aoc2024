@@ -94,6 +94,7 @@ const colors: [13][]const u8 = .{
     "\x1B[36m",
     "\x1B[37m",
 };
+
 const color_end = "\x1B[0m";
 var mapped: std.ArrayList(bool) = undefined;
 var map_width: usize = undefined;
@@ -182,6 +183,7 @@ pub const Region = struct {
             }
         }
         //std.debug.print("Region {c} segments {any}\n", .{ self.symbol, line_segments.items });
+        //std.debug.print("Building fence for region {c}\n", .{self.symbol});
         var sides: u64 = 0;
         while (line_segments.items.len > 0) {
             const starting_segment = line_segments.pop();
