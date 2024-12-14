@@ -367,7 +367,7 @@ pub fn part2(file_name: []const u8, allocator: std.mem.Allocator, width: u64, he
     }
     //std.debug.print("map {s}\nwidth {d} height {d} len {d}\n", .{ map.items, map_width, map_height, map.items.len });
     //std.debug.print("Robots {any}\n", .{robots.items});
-    for (0..12000) |i| {
+    for (0..map_width * map_height) |i| {
         const col_length = run_robots_p2(robots, map, 1);
         if (col_length > longest_col) {
             longest_col = col_length;
