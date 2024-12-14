@@ -19,7 +19,7 @@ pub fn build(b: *std.Build) void {
         .name = "aoc",
         .root_source_file = b.path("src/main.zig"),
         .target = target,
-        .optimize = optimize,
+        .optimize = .ReleaseFast,
     });
 
     // This declares intent for the executable to be installed into the

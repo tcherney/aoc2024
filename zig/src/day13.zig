@@ -76,22 +76,28 @@ pub fn dumb_search(problem: *Problem) i64 {
     }
     return 0;
 }
+
+//TODO could mess around with a dumb binary search
+pub fn dumber_search_iter(A_CAP: i64, B_CAP: i64, problem: *Problem) i64 {
+    const num_a: i64 = @divFloor(A_CAP, 2);
+    const num_b: i64 = @divFloor(B_CAP, 2);
+    if (num_a * problem.button_a.x + num_b * problem.button_b.x == problem.goal.x and num_a * problem.button_a.y + num_b * problem.button_b.y == problem.goal.y) {
+        return 3 * num_a + num_b;
+    } else {
+        return 0;
+    }
+}
+
 pub fn dumber_search(problem: *Problem) i64 {
     var x_max = @divFloor(problem.goal.x, problem.button_a.x);
     var y_max = @divFloor(problem.goal.y, problem.button_a.y);
-    const A_CAP = @as(u64, @bitCast(if (x_max > y_max) x_max else y_max));
+    const A_CAP = if (x_max > y_max) x_max else y_max;
     x_max = @divFloor(problem.goal.x, problem.button_b.x);
     y_max = @divFloor(problem.goal.y, problem.button_b.y);
-    const B_CAP = @as(u64, @bitCast(if (x_max > y_max) x_max else y_max));
+    const B_CAP = if (x_max > y_max) x_max else y_max;
     std.debug.print("A_CAP {d} B_CAP {d}\n", .{ A_CAP, B_CAP });
-    for (0..A_CAP) |a| {
-        for (0..B_CAP) |b| {
-            if (@as(i64, @bitCast(a)) * problem.button_a.x + @as(i64, @bitCast(b)) * problem.button_b.x == problem.goal.x and @as(i64, @bitCast(a)) * problem.button_a.y + @as(i64, @bitCast(b)) * problem.button_b.y == problem.goal.y) {
-                return 3 * @as(i64, @bitCast(a)) + @as(i64, @bitCast(b));
-            }
-        }
-    }
-    return 0;
+
+    return dumber_search_iter(A_CAP, B_CAP, problem);
 }
 
 pub const Equation = struct {
@@ -243,7 +249,7 @@ test "day13" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
     var timer = try std.time.Timer.start();
-    std.debug.print("Number of tokens {d} in {d}ms\n", .{ try part1("inputs/day13/test.txt", allocator), timer.lap() / std.time.ns_per_ms });
+    std.debug.print("Number of tokens {d} in {d}ms\n", .{ try part1("inputs/day13/input.txt", allocator), timer.lap() / std.time.ns_per_ms });
     std.debug.print("Number of tokens {d} in {d}ms\n", .{ try part2("inputs/day13/input.txt", allocator), timer.lap() / std.time.ns_per_ms });
     if (gpa.deinit() == .leak) {
         std.debug.print("Leaked!\n", .{});
