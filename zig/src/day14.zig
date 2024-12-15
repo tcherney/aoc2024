@@ -216,25 +216,30 @@ pub fn run_robots_p2(robots: std.ArrayList(Robot), map: std.ArrayList(u8), round
     return most_col_in_row;
 }
 
-pub fn print_robots(map: std.ArrayList(u8)) void {
+pub fn print_robots(map: std.ArrayList(u8), with_color: bool) void {
     for (0..map_height) |i| {
         for (0..map_width) |j| {
             if (i == map_height / 2 or j == map_width / 2) {
                 std.debug.print(" ", .{});
             } else {
-                if (i < map_height / 2 and j < map_width / 2) {
-                    std.debug.print("{s}", .{colors[0]});
-                } else if (i < map_height / 2 and j > map_width / 2) {
-                    std.debug.print("{s}", .{colors[1]});
-                } else if (i > map_height / 2 and j < map_width / 2) {
-                    std.debug.print("{s}", .{colors[2]});
-                } else {
-                    std.debug.print("{s}", .{colors[3]});
+                if (with_color) {
+                    if (i < map_height / 2 and j < map_width / 2) {
+                        std.debug.print("{s}", .{colors[0]});
+                    } else if (i < map_height / 2 and j > map_width / 2) {
+                        std.debug.print("{s}", .{colors[1]});
+                    } else if (i > map_height / 2 and j < map_width / 2) {
+                        std.debug.print("{s}", .{colors[2]});
+                    } else {
+                        std.debug.print("{s}", .{colors[3]});
+                    }
                 }
                 if (map.items[i * map_width + j] == 0) {
-                    std.debug.print("." ++ color_end, .{});
+                    std.debug.print(".", .{});
                 } else {
-                    std.debug.print("{d}" ++ color_end, .{map.items[i * map_width + j]});
+                    std.debug.print("{d}", .{map.items[i * map_width + j]});
+                }
+                if (with_color) {
+                    std.debug.print(color_end, .{});
                 }
             }
         }
@@ -319,7 +324,7 @@ pub fn part1(file_name: []const u8, allocator: std.mem.Allocator, width: u64, he
     //std.debug.print("map {s}\nwidth {d} height {d} len {d}\n", .{ map.items, map_width, map_height, map.items.len });
     //std.debug.print("Robots {any}\n", .{robots.items});
     const result = run_robots(robots, map, 100);
-    //print_robots(map);
+    print_robots(map, true);
     return result;
 }
 
@@ -372,7 +377,7 @@ pub fn part2(file_name: []const u8, allocator: std.mem.Allocator, width: u64, he
         if (col_length > longest_col) {
             longest_col = col_length;
             longest_col_index = i + 1;
-            print_robots(map);
+            print_robots(map, true);
         }
     }
     return longest_col_index;
