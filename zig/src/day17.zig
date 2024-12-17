@@ -97,6 +97,9 @@ const nl = "\n";
 
 const term_on = screen_buf_on ++ cursor_hide ++ cursor_home ++ screen_clear ++ color_def;
 const term_off = screen_buf_off ++ cursor_show ++ nl;
+var num_buf: [1024]u8 = undefined;
+var scratch_str: std.ArrayList(u8) = undefined;
+const DEBUG = false;
 
 pub const Instruction = struct {
     opcode: Opcode,
@@ -116,6 +119,114 @@ pub const Instruction = struct {
             .opcode = @enumFromInt(@as(u3, @intCast(opcode - 48))),
             .operand = @as(u3, @intCast(operand - 48)),
         };
+    }
+
+    pub fn str(self: *Instruction) ![]u8 {
+        scratch_str.clearRetainingCapacity();
+        switch (self.opcode) {
+            .adv => {
+                try scratch_str.writer().print("adv ", .{});
+                switch (self.operand) {
+                    0, 1, 2, 3 => {
+                        try scratch_str.writer().print("{d}", .{self.operand});
+                    },
+                    4 => {
+                        try scratch_str.writer().print("A", .{});
+                    },
+                    5 => {
+                        try scratch_str.writer().print("B", .{});
+                    },
+                    6 => {
+                        try scratch_str.writer().print("C", .{});
+                    },
+                    7 => unreachable,
+                }
+            },
+            .bxl => {
+                try scratch_str.writer().print("bxl ", .{});
+                try scratch_str.writer().print("{d}", .{self.operand});
+            },
+            .bst => {
+                try scratch_str.writer().print("bst ", .{});
+                switch (self.operand) {
+                    0, 1, 2, 3 => {
+                        try scratch_str.writer().print("{d}", .{self.operand});
+                    },
+                    4 => {
+                        try scratch_str.writer().print("A", .{});
+                    },
+                    5 => {
+                        try scratch_str.writer().print("B", .{});
+                    },
+                    6 => {
+                        try scratch_str.writer().print("C", .{});
+                    },
+                    7 => unreachable,
+                }
+            },
+            .jnz => {
+                try scratch_str.writer().print("jnz ", .{});
+                try scratch_str.writer().print("{d}", .{self.operand});
+            },
+            .bxc => {
+                try scratch_str.writer().print("bxc", .{});
+            },
+            .out => {
+                try scratch_str.writer().print("out ", .{});
+                switch (self.operand) {
+                    0, 1, 2, 3 => {
+                        try scratch_str.writer().print("{d}", .{self.operand});
+                    },
+                    4 => {
+                        try scratch_str.writer().print("A", .{});
+                    },
+                    5 => {
+                        try scratch_str.writer().print("B", .{});
+                    },
+                    6 => {
+                        try scratch_str.writer().print("C", .{});
+                    },
+                    7 => unreachable,
+                }
+            },
+            .bdv => {
+                try scratch_str.writer().print("bdv ", .{});
+                switch (self.operand) {
+                    0, 1, 2, 3 => {
+                        try scratch_str.writer().print("{d}", .{self.operand});
+                    },
+                    4 => {
+                        try scratch_str.writer().print("A", .{});
+                    },
+                    5 => {
+                        try scratch_str.writer().print("B", .{});
+                    },
+                    6 => {
+                        try scratch_str.writer().print("C", .{});
+                    },
+                    7 => unreachable,
+                }
+            },
+            .cdv => {
+                try scratch_str.writer().print("cdv ", .{});
+                switch (self.operand) {
+                    0, 1, 2, 3 => {
+                        try scratch_str.writer().print("{d}", .{self.operand});
+                    },
+                    4 => {
+                        try scratch_str.writer().print("A", .{});
+                    },
+                    5 => {
+                        try scratch_str.writer().print("B", .{});
+                    },
+                    6 => {
+                        try scratch_str.writer().print("C", .{});
+                    },
+                    7 => unreachable,
+                }
+            },
+        }
+        return scratch_str.items;
     }
 
     pub fn print(self: *Instruction) void {
@@ -230,15 +341,27 @@ pub const Instruction = struct {
             .adv => {
                 switch (self.operand) {
                     0, 1, 2, 3 => {
+                        if (DEBUG) {
+                            std.debug.print("{s} {d}/{d}={d}\n", .{ try self.str(), registers.A, std.math.pow(i64, 2, @as(i64, @bitCast(@as(u64, @intCast(self.operand))))), @divFloor(registers.A, std.math.pow(i64, 2, @as(i64, @bitCast(@as(u64, @intCast(self.operand)))))) });
+                        }
                         registers.A = @divFloor(registers.A, std.math.pow(i64, 2, @as(i64, @bitCast(@as(u64, @intCast(self.operand))))));
                     },
                     4 => {
+                        if (DEBUG) {
+                            std.debug.print("{s} {d}/{d}={d}\n", .{ try self.str(), registers.A, std.math.pow(i64, 2, registers.A), @divFloor(registers.A, std.math.pow(i64, 2, registers.A)) });
+                        }
                         registers.A = @divFloor(registers.A, std.math.pow(i64, 2, registers.A));
                     },
                     5 => {
+                        if (DEBUG) {
+                            std.debug.print("{s} {d}/{d}={d}\n", .{ try self.str(), registers.A, std.math.pow(i64, 2, registers.B), @divFloor(registers.A, std.math.pow(i64, 2, registers.B)) });
+                        }
                         registers.A = @divFloor(registers.A, std.math.pow(i64, 2, registers.B));
                     },
                     6 => {
+                        if (DEBUG) {
+                            std.debug.print("{s} {d}/{d}={d}\n", .{ try self.str(), registers.A, std.math.pow(i64, 2, registers.C), @divFloor(registers.A, std.math.pow(i64, 2, registers.C)) });
+                        }
                         registers.A = @divFloor(registers.A, std.math.pow(i64, 2, registers.C));
                     },
                     7 => {
@@ -248,21 +371,36 @@ pub const Instruction = struct {
                 machine.pc += 1;
             },
             .bxl => {
+                if (DEBUG) {
+                    std.debug.print("{s} {d}^{d}={d}\n", .{ try self.str(), registers.B, @as(i64, @bitCast(@as(u64, @intCast(self.operand)))), registers.B ^ @as(i64, @bitCast(@as(u64, @intCast(self.operand)))) });
+                }
                 registers.B = registers.B ^ @as(i64, @bitCast(@as(u64, @intCast(self.operand))));
                 machine.pc += 1;
             },
             .bst => {
                 switch (self.operand) {
                     0, 1, 2, 3 => {
+                        if (DEBUG) {
+                            std.debug.print("{s} {d}%{d}={d}\n", .{ try self.str(), @as(i64, @bitCast(@as(u64, @intCast(self.operand)))), 8, @mod(@as(i64, @bitCast(@as(u64, @intCast(self.operand)))), 8) });
+                        }
                         registers.B = @mod(@as(i64, @bitCast(@as(u64, @intCast(self.operand)))), 8);
                     },
                     4 => {
+                        if (DEBUG) {
+                            std.debug.print("{s} {d}%{d}={d}\n", .{ try self.str(), registers.A, 8, @mod(registers.A, 8) });
+                        }
                         registers.B = @mod(registers.A, 8);
                     },
                     5 => {
+                        if (DEBUG) {
+                            std.debug.print("{s} {d}%{d}={d}\n", .{ try self.str(), registers.B, 8, @mod(registers.B, 8) });
+                        }
                         registers.B = @mod(registers.B, 8);
                     },
                     6 => {
+                        if (DEBUG) {
+                            std.debug.print("{s} {d}%{d}={d}\n", .{ try self.str(), registers.B, 8, @mod(registers.A, 8) });
+                        }
                         registers.B = @mod(registers.C, 8);
                     },
                     7 => {
@@ -273,12 +411,18 @@ pub const Instruction = struct {
             },
             .jnz => {
                 if (registers.A != 0) {
+                    if (DEBUG) {
+                        std.debug.print("{s} jmp {d}\n", .{ try self.str(), self.operand });
+                    }
                     machine.pc = self.operand;
                 } else {
                     machine.pc += 1;
                 }
             },
             .bxc => {
+                if (DEBUG) {
+                    std.debug.print("{s} {d}^{d}={d}\n", .{ try self.str(), registers.B, registers.C, registers.B ^ registers.C });
+                }
                 registers.B = registers.B ^ registers.C;
                 machine.pc += 1;
             },
@@ -288,15 +432,27 @@ pub const Instruction = struct {
                 }
                 switch (self.operand) {
                     0, 1, 2, 3 => {
+                        if (DEBUG) {
+                            std.debug.print("{s} {d}%{d}={d}\n", .{ try self.str(), @as(i64, @bitCast(@as(u64, @intCast(self.operand)))), 8, @mod(@as(i64, @bitCast(@as(u64, @intCast(self.operand)))), 8) });
+                        }
                         try machine.output.writer().print("{d}", .{@mod(@as(i64, @bitCast(@as(u64, @intCast(self.operand)))), 8)});
                     },
                     4 => {
+                        if (DEBUG) {
+                            std.debug.print("{s} {d}%{d}={d}\n", .{ try self.str(), registers.A, 8, @mod(registers.A, 8) });
+                        }
                         try machine.output.writer().print("{d}", .{@mod(registers.A, 8)});
                     },
                     5 => {
+                        if (DEBUG) {
+                            std.debug.print("{s} {d}%{d}={d}\n", .{ try self.str(), registers.B, 8, @mod(registers.B, 8) });
+                        }
                         try machine.output.writer().print("{d}", .{@mod(registers.B, 8)});
                     },
                     6 => {
+                        if (DEBUG) {
+                            std.debug.print("{s} {d}%{d}={d}\n", .{ try self.str(), registers.C, 8, @mod(registers.C, 8) });
+                        }
                         try machine.output.writer().print("{d}", .{@mod(registers.C, 8)});
                     },
                     7 => {
@@ -308,15 +464,27 @@ pub const Instruction = struct {
             .bdv => {
                 switch (self.operand) {
                     0, 1, 2, 3 => {
+                        if (DEBUG) {
+                            std.debug.print("{s} {d}/{d}={d}\n", .{ try self.str(), registers.A, std.math.pow(i64, 2, @as(i64, @bitCast(@as(u64, @intCast(self.operand))))), @divFloor(registers.A, std.math.pow(i64, 2, @as(i64, @bitCast(@as(u64, @intCast(self.operand)))))) });
+                        }
                         registers.B = @divFloor(registers.A, std.math.pow(i64, 2, @as(i64, @bitCast(@as(u64, @intCast(self.operand))))));
                     },
                     4 => {
+                        if (DEBUG) {
+                            std.debug.print("{s} {d}/{d}={d}\n", .{ try self.str(), registers.A, std.math.pow(i64, 2, registers.A), @divFloor(registers.A, std.math.pow(i64, 2, registers.A)) });
+                        }
                         registers.B = @divFloor(registers.A, std.math.pow(i64, 2, registers.A));
                     },
                     5 => {
+                        if (DEBUG) {
+                            std.debug.print("{s} {d}/{d}={d}\n", .{ try self.str(), registers.A, std.math.pow(i64, 2, registers.B), @divFloor(registers.A, std.math.pow(i64, 2, registers.B)) });
+                        }
                         registers.B = @divFloor(registers.A, std.math.pow(i64, 2, registers.B));
                     },
                     6 => {
+                        if (DEBUG) {
+                            std.debug.print("{s} {d}/{d}={d}\n", .{ try self.str(), registers.A, std.math.pow(i64, 2, registers.C), @divFloor(registers.A, std.math.pow(i64, 2, registers.C)) });
+                        }
                         registers.B = @divFloor(registers.A, std.math.pow(i64, 2, registers.C));
                     },
                     7 => {
@@ -328,15 +496,27 @@ pub const Instruction = struct {
             .cdv => {
                 switch (self.operand) {
                     0, 1, 2, 3 => {
+                        if (DEBUG) {
+                            std.debug.print("{s} {d}/{d}={d}\n", .{ try self.str(), registers.A, std.math.pow(i64, 2, @as(i64, @bitCast(@as(u64, @intCast(self.operand))))), @divFloor(registers.A, std.math.pow(i64, 2, @as(i64, @bitCast(@as(u64, @intCast(self.operand)))))) });
+                        }
                         registers.C = @divFloor(registers.A, std.math.pow(i64, 2, @as(i64, @bitCast(@as(u64, @intCast(self.operand))))));
                     },
                     4 => {
+                        if (DEBUG) {
+                            std.debug.print("{s} {d}/{d}={d}\n", .{ try self.str(), registers.A, std.math.pow(i64, 2, registers.A), @divFloor(registers.A, std.math.pow(i64, 2, registers.A)) });
+                        }
                         registers.C = @divFloor(registers.A, std.math.pow(i64, 2, registers.A));
                     },
                     5 => {
+                        if (DEBUG) {
+                            std.debug.print("{s} {d}/{d}={d}\n", .{ try self.str(), registers.A, std.math.pow(i64, 2, registers.B), @divFloor(registers.A, std.math.pow(i64, 2, registers.B)) });
+                        }
                         registers.C = @divFloor(registers.A, std.math.pow(i64, 2, registers.B));
                     },
                     6 => {
+                        if (DEBUG) {
+                            std.debug.print("{s} {d}/{d}={d}\n", .{ try self.str(), registers.A, std.math.pow(i64, 2, registers.C), @divFloor(registers.A, std.math.pow(i64, 2, registers.C)) });
+                        }
                         registers.C = @divFloor(registers.A, std.math.pow(i64, 2, registers.C));
                     },
                     7 => {
@@ -386,8 +566,10 @@ pub const Machine = struct {
     }
     pub fn run(self: *Machine) ![]u8 {
         self.pc = 0;
-        //std.debug.print("Start state\n", .{});
-        //self.print_state();
+        if (DEBUG) {
+            std.debug.print("Start state\n", .{});
+            self.print_state();
+        }
         while (self.pc < self.instructions.items.len) {
             try self.instructions.items[self.pc].execute(&self.registers, self);
         }
@@ -408,7 +590,6 @@ pub const Machine = struct {
     }
 };
 
-var num_buf: [1024]u8 = undefined;
 pub fn part1(file_name: []const u8, allocator: std.mem.Allocator) ![]u8 {
     const f = try std.fs.cwd().openFile(file_name, .{});
     defer f.close();
@@ -441,9 +622,11 @@ pub fn part1(file_name: []const u8, allocator: std.mem.Allocator) ![]u8 {
             }
         }
     }
-    //std.debug.print("Machine {any}\n", .{machine});
-    //std.debug.print("Registers {any}\n", .{machine.registers});
-    //std.debug.print("Instructions {any}\n", .{machine.instructions.items});
+    if (DEBUG) {
+        std.debug.print("Machine {any}\n", .{machine});
+        std.debug.print("Registers {any}\n", .{machine.registers});
+        std.debug.print("Instructions {any}\n", .{machine.instructions.items});
+    }
     return try std.fmt.bufPrint(&num_buf, "{s}", .{try machine.run()});
 }
 
@@ -461,7 +644,9 @@ pub fn part1(file_name: []const u8, allocator: std.mem.Allocator) ![]u8 {
 
 // What is the lowest positive initial value for register A that causes the program to output a copy of itself?
 pub fn solve_rec(machine: *Machine, program: std.ArrayList(u8), digit: i64, solved_digits: i64) !i64 {
-    std.debug.print("digit {d} solved digit {d}\n", .{ digit, solved_digits });
+    if (DEBUG) {
+        std.debug.print("digit {d} solved digit {d}\n", .{ digit, solved_digits });
+    }
     const found_digits = solved_digits * 8;
     for (0..8) |i| {
         const a = found_digits + @as(i64, @bitCast(i));
@@ -519,10 +704,12 @@ pub fn part2(file_name: []const u8, allocator: std.mem.Allocator) !i64 {
             }
         }
     }
-    machine.print_state();
-    std.debug.print("Instructions: {s}\n", .{program.items});
-    for (0..machine.instructions.items.len) |i| {
-        machine.instructions.items[i].print();
+    if (DEBUG) {
+        machine.print_state();
+        std.debug.print("Instructions: {s}\n", .{program.items});
+        for (0..machine.instructions.items.len) |i| {
+            machine.instructions.items[i].print();
+        }
     }
     // machine.registers.A = 6 + 1 * std.math.pow(i64, 8, 1) + 3 * std.math.pow(i64, 8, 2) + 2 * std.math.pow(i64, 8, 3) + 2 * std.math.pow(i64, 8, 4);
     // machine.registers.A += 3 * std.math.pow(i64, 8, 5) + 1 * std.math.pow(i64, 8, 6) + 1 * std.math.pow(i64, 8, 7) + 2 * std.math.pow(i64, 8, 8);
@@ -540,9 +727,11 @@ pub fn part2(file_name: []const u8, allocator: std.mem.Allocator) !i64 {
 test "day17" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
+    scratch_str = std.ArrayList(u8).init(allocator);
     var timer = try std.time.Timer.start();
     std.debug.print("Joined output {s} in {d}ms\n", .{ try part1("../inputs/day17/input.txt", allocator), timer.lap() / std.time.ns_per_ms });
     std.debug.print("Minimum A {d} in {d}ms\n", .{ try part2("../inputs/day17/input.txt", allocator), timer.lap() / std.time.ns_per_ms });
+    scratch_str.deinit();
     if (gpa.deinit() == .leak) {
         std.debug.print("Leaked!\n", .{});
     }
