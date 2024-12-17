@@ -461,6 +461,7 @@ pub fn part1(file_name: []const u8, allocator: std.mem.Allocator) ![]u8 {
 
 // What is the lowest positive initial value for register A that causes the program to output a copy of itself?
 pub fn solve_rec(machine: *Machine, program: std.ArrayList(u8), digit: i64, solved_digits: i64) !i64 {
+    std.debug.print("digit {d} solved digit {d}\n", .{ digit, solved_digits });
     const found_digits = solved_digits * 8;
     for (0..8) |i| {
         const a = found_digits + @as(i64, @bitCast(i));
@@ -527,6 +528,12 @@ pub fn part2(file_name: []const u8, allocator: std.mem.Allocator) !i64 {
     // machine.registers.A += 3 * std.math.pow(i64, 8, 5) + 1 * std.math.pow(i64, 8, 6) + 1 * std.math.pow(i64, 8, 7) + 2 * std.math.pow(i64, 8, 8);
     // machine.registers.A += 1 * std.math.pow(i64, 8, 9) + 2 * std.math.pow(i64, 8, 10) + 3 * std.math.pow(i64, 8, 11) + 4 * std.math.pow(i64, 8, 12);
     // machine.registers.A += 7 * std.math.pow(i64, 8, 13) + 7 * std.math.pow(i64, 8, 14) + 3 * std.math.pow(i64, 8, 15);
+    // for (0..8) |i| {
+    //     machine.reset(@as(i64, @bitCast(i + 192)));
+    //     std.debug.print("{s}\n", .{try machine.run()});
+    //     std.time.sleep(std.time.ns_per_s * 2);
+    // }
+
     return solve_rec(&machine, program, 1, 0);
 }
 
