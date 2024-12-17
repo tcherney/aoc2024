@@ -1285,8 +1285,8 @@ test "day15" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
     var timer = try std.time.Timer.start();
-    std.debug.print("Sum of all boxes' GPS coordinates {d} in {d}ms\n", .{ try part1("../inputs/day15/input.txt", allocator), timer.lap() / std.time.ns_per_ms });
-    std.debug.print("Sum of all boxes' GPS coordinates {d} in {d}ms\n", .{ try part2("../inputs/day15/input.txt", allocator), timer.lap() / std.time.ns_per_ms });
+    std.debug.print("Sum of all boxes' GPS coordinates {d} in {d}ms\n", .{ try part1("inputs/day15/input.txt", allocator), timer.lap() / std.time.ns_per_ms });
+    std.debug.print("Sum of all boxes' GPS coordinates {d} in {d}ms\n", .{ try part2("inputs/day15/input.txt", allocator), timer.lap() / std.time.ns_per_ms });
     if (gpa.deinit() == .leak) {
         std.debug.print("Leaked!\n", .{});
     }
