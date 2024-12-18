@@ -209,6 +209,7 @@ pub const Graph = struct {
     }
 
     pub fn trace_path(map: std.ArrayList(u8), prev: []std.ArrayList(Node), curr: u64) void {
+        if (map.items[curr] == 'O') return;
         map.items[curr] = 'O';
         for (0..prev[curr].items.len) |i| {
             trace_path(map, prev, prev[curr].items[i].loc.to_indx());
@@ -248,6 +249,60 @@ pub const Graph = struct {
                         .loc = Location.init(edge.v.loc.to_indx()),
                         .edges = self.nodes.items[edge.v.loc.to_indx()].edges,
                         .cost = new_cost,
+                    });
+                } else if (new_cost == dist[edge.v.loc.to_indx()]) {
+                    try prev[edge.v.loc.to_indx()].append(self.nodes.items[u.loc.to_indx()]);
+                }
+            }
+        }
+        // add path trace
+        trace_path(map, prev, dest.loc.to_indx());
+        for (0..prev.len) |i| {
+            prev[i].deinit();
+        }
+
+        return dist[dest.loc.to_indx()];
+    }
+
+    pub fn heuristic(node: *const Node, goal: *const Node) u64 {
+        return @abs(node.loc.x - goal.loc.x) + @abs(node.loc.y - goal.loc.y);
+    }
+
+    pub fn a_star(self: *Graph, allocator: std.mem.Allocator, map: std.ArrayList(u8), src: *Node, dest: *Node) !u64 {
+        var dist: []u64 = try allocator.alloc(u64, self.nodes.items.len);
+        defer allocator.free(dist);
+        for (0..dist.len) |i| {
+            dist[i] = INF;
+        }
+        var prev: []std.ArrayList(Node) = try allocator.alloc(std.ArrayList(Node), self.nodes.items.len);
+        for (0..prev.len) |i| {
+            prev[i] = std.ArrayList(Node).init(allocator);
+        }
+        defer allocator.free(prev);
+
+        var prio_q = std.PriorityQueue(Node, void, Node.less_than).init(allocator, {});
+        defer prio_q.deinit();
+        const src_indx = src.loc.to_indx();
+        dist[src_indx] = 0;
+        try prio_q.add(Node{
+            .loc = Location.init(src_indx),
+            .edges = self.nodes.items[src_indx].edges,
+            .cost = heuristic(src, dest),
+        });
+        while (prio_q.items.len > 0) {
+            const u = prio_q.remove();
+            if (u.loc.eql(dest.loc)) break;
+            for (u.edges.items) |edge| {
+                const new_cost = dist[u.loc.to_indx()] + edge.cost;
+                const estimated_cost = new_cost + heuristic(edge.v, dest);
+                if (new_cost < dist[edge.v.loc.to_indx()]) {
+                    dist[edge.v.loc.to_indx()] = new_cost;
+                    prev[edge.v.loc.to_indx()].clearRetainingCapacity();
+                    try prev[edge.v.loc.to_indx()].append(self.nodes.items[u.loc.to_indx()]);
+                    try prio_q.add(Node{
+                        .loc = Location.init(edge.v.loc.to_indx()),
+                        .edges = self.nodes.items[edge.v.loc.to_indx()].edges,
+                        .cost = estimated_cost,
                     });
                 } else if (new_cost == dist[edge.v.loc.to_indx()]) {
                     try prev[edge.v.loc.to_indx()].append(self.nodes.items[u.loc.to_indx()]);
@@ -337,7 +392,7 @@ pub fn part1(file_name: []const u8, allocator: std.mem.Allocator) !u64 {
     // std.debug.print("Start\n", .{});
     // graph.nodes.items[0].print();
     // graph.nodes.items[map_height * map_width - 1].print();
-    const score = try graph.dijkstra(allocator, map, &graph.nodes.items[0], &graph.nodes.items[map_height * map_width - 1]);
+    const score = try graph.a_star(allocator, map, &graph.nodes.items[0], &graph.nodes.items[map_height * map_width - 1]);
     print_map(map, true);
     return score;
 }
@@ -403,11 +458,11 @@ pub fn part2(file_name: []const u8, allocator: std.mem.Allocator) ![]u8 {
     var max = bytes.items.len;
     while (min < max) {
         NUM_BYTES = (min + max) / 2;
-        std.debug.print("{d} {d} {d}\n", .{ NUM_BYTES, min, max });
+        //std.debug.print("{d} {d} {d}\n", .{ NUM_BYTES, min, max });
         update_map(&map, bytes);
         graph.deinit();
         graph = try Graph.init(allocator, map);
-        const score = try graph.dijkstra(allocator, map, &graph.nodes.items[0], &graph.nodes.items[map_height * map_width - 1]);
+        const score = try graph.a_star(allocator, map, &graph.nodes.items[0], &graph.nodes.items[map_height * map_width - 1]);
         if (score == Graph.INF) {
             max = NUM_BYTES - 1;
         } else {
