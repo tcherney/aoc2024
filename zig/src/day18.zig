@@ -216,7 +216,6 @@ pub const Graph = struct {
     }
 
     pub fn dijkstra(self: *Graph, allocator: std.mem.Allocator, map: std.ArrayList(u8), src: *Node, dest: *Node) !u64 {
-        _ = map;
         var dist: []u64 = try allocator.alloc(u64, self.nodes.items.len);
         defer allocator.free(dist);
         for (0..dist.len) |i| {
@@ -256,7 +255,7 @@ pub const Graph = struct {
             }
         }
         // add path trace
-        //trace_path(map, prev, dest.loc.to_indx());
+        trace_path(map, prev, dest.loc.to_indx());
         for (0..prev.len) |i| {
             prev[i].deinit();
         }
@@ -280,7 +279,7 @@ pub fn print_map(map: std.ArrayList(u8), with_color: bool) void {
             switch (map.items[i * map_width + j]) {
                 '#' => if (with_color) std.debug.print("{s}{c}" ++ color_end, .{ colors[0], map.items[i * map_width + j] }) else std.debug.print("{c}", .{map.items[i * map_width + j]}),
                 '.' => if (with_color) std.debug.print("{s}{c}" ++ color_end, .{ colors[1], map.items[i * map_width + j] }) else std.debug.print("{c}", .{map.items[i * map_width + j]}),
-                //'^', 'v', '<', '>' => if (with_color) std.debug.print("{s}{c}" ++ color_end, .{ colors[5], map.items[i * map_width + j] }) else std.debug.print("{c}", .{map.items[i * map_width + j]}),
+                'X' => if (with_color) std.debug.print("{s}{c}" ++ color_end, .{ colors[2], map.items[i * map_width + j] }) else std.debug.print("{c}", .{map.items[i * map_width + j]}),
                 'O' => if (with_color) std.debug.print("{s}{c}" ++ color_end, .{ colors[4], map.items[i * map_width + j] }) else std.debug.print("{c}", .{map.items[i * map_width + j]}),
                 else => unreachable,
             }
@@ -300,8 +299,11 @@ pub fn build_map(map: *std.ArrayList(u8), bytes: std.ArrayList(Location)) !void 
     }
 }
 
-pub fn update_map(map: *std.ArrayList(u8), bytes: std.ArrayList(Location), start: usize) void {
-    for (start..NUM_BYTES) |i| {
+pub fn update_map(map: *std.ArrayList(u8), bytes: std.ArrayList(Location)) void {
+    for (0..map.items.len) |i| {
+        map.items[i] = '.';
+    }
+    for (0..NUM_BYTES) |i| {
         map.items[bytes.items[i].to_indx()] = '#';
     }
 }
@@ -396,17 +398,25 @@ pub fn part2(file_name: []const u8, allocator: std.mem.Allocator) ![]u8 {
     // std.debug.print("Start\n", .{});
     // graph.nodes.items[0].print();
     // graph.nodes.items[map_height * map_width - 1].print();
-    var score = try graph.dijkstra(allocator, map, &graph.nodes.items[0], &graph.nodes.items[map_height * map_width - 1]);
-    while (score != Graph.INF) {
-        const prev = NUM_BYTES;
-        NUM_BYTES += 1;
-        update_map(&map, bytes, prev);
+
+    var min = NUM_BYTES;
+    var max = bytes.items.len;
+    while (min < max) {
+        NUM_BYTES = (min + max) / 2;
+        std.debug.print("{d} {d} {d}\n", .{ NUM_BYTES, min, max });
+        update_map(&map, bytes);
         graph.deinit();
         graph = try Graph.init(allocator, map);
-        score = try graph.dijkstra(allocator, map, &graph.nodes.items[0], &graph.nodes.items[map_height * map_width - 1]);
+        const score = try graph.dijkstra(allocator, map, &graph.nodes.items[0], &graph.nodes.items[map_height * map_width - 1]);
+        if (score == Graph.INF) {
+            max = NUM_BYTES - 1;
+        } else {
+            min = NUM_BYTES + 1;
+        }
     }
+    map.items[bytes.items[NUM_BYTES].to_indx()] = 'X';
     print_map(map, true);
-    return std.fmt.bufPrint(&num_buf, "({d},{d})", .{ bytes.items[NUM_BYTES - 1].x, bytes.items[NUM_BYTES - 1].y });
+    return std.fmt.bufPrint(&num_buf, "({d},{d})", .{ bytes.items[NUM_BYTES].x, bytes.items[NUM_BYTES].y });
 }
 
 test "day18" {
