@@ -99,7 +99,7 @@ const term_on = screen_buf_on ++ cursor_hide ++ cursor_home ++ screen_clear ++ c
 const term_off = screen_buf_off ++ cursor_show ++ nl;
 var num_buf: [1024]u8 = undefined;
 var scratch_str: std.ArrayList(u8) = undefined;
-const DEBUG = false;
+const DEBUG = true;
 
 pub const Instruction = struct {
     opcode: Opcode,
@@ -622,6 +622,7 @@ pub fn part1(file_name: []const u8, allocator: std.mem.Allocator) ![]u8 {
             }
         }
     }
+    machine.registers.A = 0 + 7 * std.math.pow(i64, 8, 1) + 2 * std.math.pow(i64, 8, 2) + 5 * std.math.pow(i64, 8, 3) + 4 * std.math.pow(i64, 8, 4) + 3 * std.math.pow(i64, 8, 5);
     if (DEBUG) {
         std.debug.print("Machine {any}\n", .{machine});
         std.debug.print("Registers {any}\n", .{machine.registers});
@@ -729,8 +730,8 @@ test "day17" {
     const allocator = gpa.allocator();
     scratch_str = std.ArrayList(u8).init(allocator);
     var timer = try std.time.Timer.start();
-    std.debug.print("Joined output {s} in {d}ms\n", .{ try part1("../inputs/day17/input.txt", allocator), timer.lap() / std.time.ns_per_ms });
-    std.debug.print("Minimum A {d} in {d}ms\n", .{ try part2("../inputs/day17/input.txt", allocator), timer.lap() / std.time.ns_per_ms });
+    std.debug.print("Joined output {s} in {d}ms\n", .{ try part1("../inputs/day17/copy.txt", allocator), timer.lap() / std.time.ns_per_ms });
+    //std.debug.print("Minimum A {d} in {d}ms\n", .{ try part2("../inputs/day17/input.txt", allocator), timer.lap() / std.time.ns_per_ms });
     scratch_str.deinit();
     if (gpa.deinit() == .leak) {
         std.debug.print("Leaked!\n", .{});
