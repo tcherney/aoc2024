@@ -479,90 +479,115 @@ pub fn print_costs(map: std.ArrayList(u8), dist: []u64, with_color: bool) void {
     }
 }
 
-pub fn try_cheating(map: std.ArrayList(u8), dist_to_end: []u64) u64 {
+pub fn try_cheating(map: std.ArrayList(u8), dist_to_end: []u64, CHEAT_THRESHOLD: comptime_int, MAX_CHEATS: comptime_int) u64 {
     var num_cheats: u64 = 0;
-    const CHEAT_THRESHOLD = 100;
+    var start: Location = undefined;
+    var end: Location = undefined;
     for (0..map_height) |i| {
         for (0..map_width) |j| {
             if (i == 0 or j == 0 or i == map_height - 1 or j == map_width - 1) continue;
             //std.debug.print("{c} {d},{d}\n", .{ map.items[i * map_width + j], j, i });
-            if (map.items[i * map_width + j] == '#') {
-                const up = dist_to_end[(i - 1) * map_width + j];
-                const down = dist_to_end[(i + 1) * map_width + j];
-                const right = dist_to_end[i * map_width + j + 1];
-                const left = dist_to_end[i * map_width + j - 1];
-                if (map.items[i * map_width + j - 1] != '#' and left != Graph.INF) {
-                    //std.debug.print("considering {d},{d} => {d},{d}\n", .{ j, i, j - 1, i });
-                    //std.debug.print("up {d}, down {d}, left {d}, right {d}\n", .{ up, down, left, right });
-                    if (left < up and left < right and left < down) {
-                        var max_saving: u64 = 0;
-                        if (up != Graph.INF) {
-                            max_saving = @max(up - left - 2, max_saving);
+            if (map.items[i * map_width + j] != '#') {
+                const min_x = if (j >= (MAX_CHEATS + 1)) j - MAX_CHEATS else 1;
+                const max_x = if ((map_width >= MAX_CHEATS + 1) and j <= (map_width - 1 - MAX_CHEATS)) j + MAX_CHEATS + 1 else map_width - 1;
+                const min_y = if (i >= (MAX_CHEATS + 1)) i - MAX_CHEATS else 1;
+                const max_y = if ((map_height >= MAX_CHEATS + 1) and i <= (map_height - 1 - MAX_CHEATS)) i + MAX_CHEATS + 1 else map_height - 1;
+                end.x = @as(i64, @bitCast(j));
+                end.y = @as(i64, @bitCast(i));
+                const end_dist = dist_to_end[i * map_width + j];
+                //if (end_dist == 0) std.debug.print("found {d} {d}, {d} {d}\n", .{ min_x, max_x, min_y, max_y });
+                for (min_y..max_y) |y| {
+                    for (min_x..max_x) |x| {
+                        const start_dist = dist_to_end[y * map_width + x];
+                        //if (end_dist == 0) std.debug.print("({d},{d}), ({d},{d})\n", .{ j, i, x, y });
+                        if (start_dist == Graph.INF) continue;
+                        if (start_dist > end_dist) {
+                            start.x = @as(i64, @bitCast(x));
+                            start.y = @as(i64, @bitCast(y));
+                            const dist_start_end = end.manhattan(start);
+                            if (dist_start_end <= MAX_CHEATS and (start_dist - end_dist - dist_start_end) >= (CHEAT_THRESHOLD)) {
+                                //std.debug.print("Found cheat from {any} to {any}\n", .{ start, end });
+                                num_cheats += 1;
+                            }
                         }
-                        if (down != Graph.INF) {
-                            max_saving = @max(down - left - 2, max_saving);
-                        }
-                        if (right != Graph.INF) {
-                            max_saving = @max(right - left - 2, max_saving);
-                        }
-                        if (max_saving >= CHEAT_THRESHOLD) num_cheats += 1;
-                        //std.debug.print("Savings of {d}\n", .{max_saving});
                     }
                 }
-                if (map.items[i * map_width + j + 1] != '#' and right != Graph.INF) {
-                    //std.debug.print("considering {d},{d} => {d},{d}\n", .{ j, i, j + 1, i });
-                    //std.debug.print("up {d}, down {d}, left {d}, right {d}\n", .{ up, down, left, right });
-                    if (right < up and right < left and right < down) {
-                        var max_saving: u64 = 0;
-                        if (up != Graph.INF) {
-                            max_saving = @max(up - right - 2, max_saving);
-                        }
-                        if (down != Graph.INF) {
-                            max_saving = @max(down - right - 2, max_saving);
-                        }
-                        if (left != Graph.INF) {
-                            max_saving = @max(left - right - 2, max_saving);
-                        }
-                        if (max_saving >= CHEAT_THRESHOLD) num_cheats += 1;
-                        //std.debug.print("Savings of {d}\n", .{max_saving});
-                    }
-                }
-                if (map.items[(i - 1) * map_width + j] != '#' and up != Graph.INF) {
-                    //std.debug.print("considering {d},{d} => {d},{d}\n", .{ j, i, j, i - 1 });
-                    //std.debug.print("up {d}, down {d}, left {d}, right {d}\n", .{ up, down, left, right });
-                    if (up < right and up < left and up < down) {
-                        var max_saving: u64 = 0;
-                        if (right != Graph.INF) {
-                            max_saving = @max(right - up - 2, max_saving);
-                        }
-                        if (down != Graph.INF) {
-                            max_saving = @max(down - up - 2, max_saving);
-                        }
-                        if (left != Graph.INF) {
-                            max_saving = @max(left - up - 2, max_saving);
-                        }
-                        if (max_saving >= CHEAT_THRESHOLD) num_cheats += 1;
-                        //std.debug.print("Savings of {d}\n", .{max_saving});
-                    }
-                }
-                if (map.items[(i + 1) * map_width + j] != '#' and down != Graph.INF) {
-                    //std.debug.print("considering {d},{d} => {d},{d}\n", .{ j, i, j, i + 1 });
-                    //std.debug.print("up {d}, down {d}, left {d}, right {d}\n", .{ up, down, left, right });
-                    if (down < right and down < left and down < up) {
-                        var max_saving: u64 = 0;
-                        if (right != Graph.INF) {
-                            max_saving = @max(right - down - 2, max_saving);
-                        }
-                        if (up != Graph.INF) {
-                            max_saving = @max(up - down - 2, max_saving);
-                        }
-                        if (left != Graph.INF) {
-                            max_saving = @max(left - down - 2, max_saving);
-                        }
-                        if (max_saving >= CHEAT_THRESHOLD) num_cheats += 1;
-                        //std.debug.print("Savings of {d}\n", .{max_saving});
-                    }
-                }
+                // const up = dist_to_end[(i - 1) * map_width + j];
+                // const down = dist_to_end[(i + 1) * map_width + j];
+                // const right = dist_to_end[i * map_width + j + 1];
+                // const left = dist_to_end[i * map_width + j - 1];
+                // if (map.items[i * map_width + j - 1] != '#' and left != Graph.INF) {
+                //     //std.debug.print("considering {d},{d} => {d},{d}\n", .{ j, i, j - 1, i });
+                //     //std.debug.print("up {d}, down {d}, left {d}, right {d}\n", .{ up, down, left, right });
+                //     if (left < up and left < right and left < down) {
+                //         var max_saving: u64 = 0;
+                //         if (up != Graph.INF) {
+                //             max_saving = @max(up - left - 2, max_saving);
+                //         }
+                //         if (down != Graph.INF) {
+                //             max_saving = @max(down - left - 2, max_saving);
+                //         }
+                //         if (right != Graph.INF) {
+                //             max_saving = @max(right - left - 2, max_saving);
+                //         }
+                //         if (max_saving >= CHEAT_THRESHOLD) num_cheats += 1;
+                //         //std.debug.print("Savings of {d}\n", .{max_saving});
+                //     }
+                // }
+                // if (map.items[i * map_width + j + 1] != '#' and right != Graph.INF) {
+                //     //std.debug.print("considering {d},{d} => {d},{d}\n", .{ j, i, j + 1, i });
+                //     //std.debug.print("up {d}, down {d}, left {d}, right {d}\n", .{ up, down, left, right });
+                //     if (right < up and right < left and right < down) {
+                //         var max_saving: u64 = 0;
+                //         if (up != Graph.INF) {
+                //             max_saving = @max(up - right - 2, max_saving);
+                //         }
+                //         if (down != Graph.INF) {
+                //             max_saving = @max(down - right - 2, max_saving);
+                //         }
+                //         if (left != Graph.INF) {
+                //             max_saving = @max(left - right - 2, max_saving);
+                //         }
+                //         if (max_saving >= CHEAT_THRESHOLD) num_cheats += 1;
+                //         //std.debug.print("Savings of {d}\n", .{max_saving});
+                //     }
+                // }
+                // if (map.items[(i - 1) * map_width + j] != '#' and up != Graph.INF) {
+                //     //std.debug.print("considering {d},{d} => {d},{d}\n", .{ j, i, j, i - 1 });
+                //     //std.debug.print("up {d}, down {d}, left {d}, right {d}\n", .{ up, down, left, right });
+                //     if (up < right and up < left and up < down) {
+                //         var max_saving: u64 = 0;
+                //         if (right != Graph.INF) {
+                //             max_saving = @max(right - up - 2, max_saving);
+                //         }
+                //         if (down != Graph.INF) {
+                //             max_saving = @max(down - up - 2, max_saving);
+                //         }
+                //         if (left != Graph.INF) {
+                //             max_saving = @max(left - up - 2, max_saving);
+                //         }
+                //         if (max_saving >= CHEAT_THRESHOLD) num_cheats += 1;
+                //         //std.debug.print("Savings of {d}\n", .{max_saving});
+                //     }
+                // }
+                // if (map.items[(i + 1) * map_width + j] != '#' and down != Graph.INF) {
+                //     //std.debug.print("considering {d},{d} => {d},{d}\n", .{ j, i, j, i + 1 });
+                //     //std.debug.print("up {d}, down {d}, left {d}, right {d}\n", .{ up, down, left, right });
+                //     if (down < right and down < left and down < up) {
+                //         var max_saving: u64 = 0;
+                //         if (right != Graph.INF) {
+                //             max_saving = @max(right - down - 2, max_saving);
+                //         }
+                //         if (up != Graph.INF) {
+                //             max_saving = @max(up - down - 2, max_saving);
+                //         }
+                //         if (left != Graph.INF) {
+                //             max_saving = @max(left - down - 2, max_saving);
+                //         }
+                //         if (max_saving >= CHEAT_THRESHOLD) num_cheats += 1;
+                //         //std.debug.print("Savings of {d}\n", .{max_saving});
+                //     }
+                // }
             }
         }
     }
@@ -599,7 +624,7 @@ pub fn part1(file_name: []const u8, allocator: std.mem.Allocator) !u64 {
     //std.debug.print("{any}\n", .{dist_to_end});
     print_costs(map, dist_to_end, true);
     graph.deinit();
-    return try_cheating(map, dist_to_end);
+    return try_cheating(map, dist_to_end, 100, 2);
 }
 
 // --- Part Two ---
@@ -659,11 +684,38 @@ pub fn part1(file_name: []const u8, allocator: std.mem.Allocator) !u64 {
 // There are 3 cheats that save 76 picoseconds.
 // Find the best cheats using the updated cheating rules. How many cheats would save you at least 100 picoseconds?
 
-//TODO instead of just looking at the immediate neighbors look at all neighbors within 20 manhattan distance
+//TODO instead of just looking at the immediate neighbors look at all neighbors within 20 manhattan distance, for each . in map search a 20by20 grid around and see if theres a cheaper . to go to with atleast threshold savings
 pub fn part2(file_name: []const u8, allocator: std.mem.Allocator) !u64 {
-    _ = file_name;
-    _ = allocator;
-    return 0;
+    const f = try std.fs.cwd().openFile(file_name, .{});
+    defer f.close();
+    var buf: [65536]u8 = undefined;
+    var map = std.ArrayList(u8).init(allocator);
+    defer map.deinit();
+    while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |unfiltered| {
+        var line = unfiltered;
+        if (std.mem.indexOfScalar(u8, unfiltered, '\r')) |indx| {
+            line = unfiltered[0..indx];
+        }
+        if (line.len == 0) continue;
+        _ = try map.writer().write(line);
+        map_width = line.len;
+    }
+    map_height = map.items.len / map_width;
+    print_map(map, true);
+    var dist_to_end: []u64 = try allocator.alloc(u64, map.items.len);
+    defer allocator.free(dist_to_end);
+    //const start = std.mem.indexOfScalar(u8, map.items, 'S').?;
+    const end = std.mem.indexOfScalar(u8, map.items, 'E').?;
+    var graph = try Graph.init(allocator, map);
+    for (0..dist_to_end.len) |i| {
+        dist_to_end[i] = std.math.maxInt(u64);
+        if (map.items[i] == '#') continue;
+        dist_to_end[i] = try graph.dijkstra(&graph.nodes.items[i], &graph.nodes.items[end]);
+    }
+    //std.debug.print("{any}\n", .{dist_to_end});
+    print_costs(map, dist_to_end, true);
+    graph.deinit();
+    return try_cheating(map, dist_to_end, 100, 20);
 }
 
 test "day20" {
@@ -672,7 +724,7 @@ test "day20" {
     scratch_str = std.ArrayList(u8).init(allocator);
     var timer = try std.time.Timer.start();
     std.debug.print("Cheats possible {d} in {d}ms\n", .{ try part1("../inputs/day20/input.txt", allocator), timer.lap() / std.time.ns_per_ms });
-    std.debug.print("Cheats possible {d} in {d}ms\n", .{ try part2("../inputs/day20/test.txt", allocator), timer.lap() / std.time.ns_per_ms });
+    std.debug.print("Cheats possible {d} in {d}ms\n", .{ try part2("../inputs/day20/input.txt", allocator), timer.lap() / std.time.ns_per_ms });
     scratch_str.deinit();
     if (gpa.deinit() == .leak) {
         std.debug.print("Leaked!\n", .{});
