@@ -1,5 +1,5 @@
 const std = @import("std");
-// https://adventofcode.com/2024/day/18
+// https://adventofcode.com/2024/day/19
 
 // --- Day 19: Linen Layout ---
 // Today, The Historians take you up to the hot springs on Gear Island! Very suspiciously, absolutely nothing goes wrong as they begin their careful search of the vast field of helixes.
@@ -97,7 +97,7 @@ pub fn solve_rec(patterns: std.ArrayList(std.ArrayList(u8)), design: []u8) !bool
     for (0..patterns.items.len) |i| {
         //std.debug.print("{d} {s}\n", .{ i, design });
         if (patterns.items[i].items.len <= design.len and std.mem.eql(u8, patterns.items[i].items, design[0..patterns.items[i].items.len])) {
-            if (patterns.items[i].items.len == design.len) return true;
+            //if (patterns.items[i].items.len == design.len) return true;
             //std.debug.print("matched pattern {s} on {s}, string is now {s}\n", .{ patterns.items[i].items, design, design[patterns.items[i].items.len..] });
             const result = try solve_rec(patterns, design[patterns.items[i].items.len..]);
             try solve_cache.put(design[patterns.items[i].items.len..], result);
