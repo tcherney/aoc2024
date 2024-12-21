@@ -188,6 +188,7 @@ pub const Graph = struct {
     allocator: std.mem.Allocator,
     dist: []u64,
     prev: []std.ArrayList(Node),
+    prio_q: std.PriorityQueue(Node, void, Node.less_than),
     const INF = std.math.maxInt(u64);
     pub const Edge = struct {
         u: *Node,
@@ -235,6 +236,7 @@ pub const Graph = struct {
             .allocator = allocator,
             .dist = try allocator.alloc(u64, map.items.len),
             .prev = try allocator.alloc(std.ArrayList(Node), map.items.len),
+            .prio_q = std.PriorityQueue(Node, void, Node.less_than).init(allocator, {}),
         };
         for (0..ret.prev.len) |i| {
             ret.prev[i] = std.ArrayList(Node).init(allocator);
@@ -276,6 +278,7 @@ pub const Graph = struct {
             self.prev[i].deinit();
         }
         self.allocator.free(self.prev);
+        self.prio_q.deinit();
     }
 
     pub fn dijkstra(self: *Graph, src: *Node, dest: *Node) !u64 {
@@ -286,17 +289,15 @@ pub const Graph = struct {
             self.prev[i].clearRetainingCapacity();
         }
 
-        var prio_q = std.PriorityQueue(Node, void, Node.less_than).init(self.allocator, {});
-        defer prio_q.deinit();
         const src_indx = src.loc.to_indx();
         self.dist[src_indx] = 0;
-        try prio_q.add(Node{
+        try self.prio_q.add(Node{
             .loc = Location.init(src_indx),
             .edges = self.nodes.items[src_indx].edges,
             .cost = 0,
         });
-        while (prio_q.items.len > 0) {
-            const u = prio_q.remove();
+        while (self.prio_q.items.len > 0) {
+            const u = self.prio_q.remove();
             if (u.loc.eql(dest.loc)) break;
             for (u.edges.items) |edge| {
                 const new_cost = u.cost + edge.cost;
@@ -304,7 +305,7 @@ pub const Graph = struct {
                     self.dist[edge.v.loc.to_indx()] = new_cost;
                     self.prev[edge.v.loc.to_indx()].clearRetainingCapacity();
                     try self.prev[edge.v.loc.to_indx()].append(self.nodes.items[u.loc.to_indx()]);
-                    try prio_q.add(Node{
+                    try self.prio_q.add(Node{
                         .loc = Location.init(edge.v.loc.to_indx()),
                         .edges = self.nodes.items[edge.v.loc.to_indx()].edges,
                         .cost = new_cost,
@@ -314,6 +315,7 @@ pub const Graph = struct {
                 }
             }
         }
+        while (self.prio_q.items.len > 0) _ = self.prio_q.remove();
 
         return self.dist[dest.loc.to_indx()];
     }
@@ -326,24 +328,22 @@ pub const Graph = struct {
             self.prev[i].clearRetainingCapacity();
         }
 
-        var prio_q = std.PriorityQueue(Node, void, Node.less_than).init(self.allocator, {});
-        defer prio_q.deinit();
         const src_indx = src.loc.to_indx();
         self.dist[src_indx] = 0;
-        try prio_q.add(Node{
+        try self.prio_q.add(Node{
             .loc = Location.init(src_indx),
             .edges = self.nodes.items[src_indx].edges,
             .cost = 0,
         });
-        while (prio_q.items.len > 0) {
-            const u = prio_q.remove();
+        while (self.prio_q.items.len > 0) {
+            const u = self.prio_q.remove();
             for (u.edges.items) |edge| {
                 const new_cost = u.cost + edge.cost;
                 if (new_cost < self.dist[edge.v.loc.to_indx()]) {
                     self.dist[edge.v.loc.to_indx()] = new_cost;
                     self.prev[edge.v.loc.to_indx()].clearRetainingCapacity();
                     try self.prev[edge.v.loc.to_indx()].append(self.nodes.items[u.loc.to_indx()]);
-                    try prio_q.add(Node{
+                    try self.prio_q.add(Node{
                         .loc = Location.init(edge.v.loc.to_indx()),
                         .edges = self.nodes.items[edge.v.loc.to_indx()].edges,
                         .cost = new_cost,
@@ -353,6 +353,7 @@ pub const Graph = struct {
                 }
             }
         }
+        while (self.prio_q.items.len > 0) _ = self.prio_q.remove();
 
         return self.dist[dest.loc.to_indx()];
     }
@@ -400,17 +401,15 @@ pub const Graph = struct {
             self.prev[i].clearRetainingCapacity();
         }
 
-        var prio_q = std.PriorityQueue(Node, void, Node.less_than).init(self.allocator, {});
-        defer prio_q.deinit();
         const src_indx = src.loc.to_indx();
         self.dist[src_indx] = 0;
-        try prio_q.add(Node{
+        try self.prio_q.add(Node{
             .loc = Location.init(src_indx),
             .edges = self.nodes.items[src_indx].edges,
             .cost = heuristic(src, dest),
         });
-        while (prio_q.items.len > 0) {
-            const u = prio_q.remove();
+        while (self.prio_q.items.len > 0) {
+            const u = self.prio_q.remove();
             if (u.loc.eql(dest.loc)) break;
             for (u.edges.items) |edge| {
                 const new_cost = self.dist[u.loc.to_indx()] + edge.cost;
@@ -419,7 +418,7 @@ pub const Graph = struct {
                     self.dist[edge.v.loc.to_indx()] = new_cost;
                     self.prev[edge.v.loc.to_indx()].clearRetainingCapacity();
                     try self.prev[edge.v.loc.to_indx()].append(self.nodes.items[u.loc.to_indx()]);
-                    try prio_q.add(Node{
+                    try self.prio_q.add(Node{
                         .loc = Location.init(edge.v.loc.to_indx()),
                         .edges = self.nodes.items[edge.v.loc.to_indx()].edges,
                         .cost = estimated_cost,
@@ -429,6 +428,8 @@ pub const Graph = struct {
                 }
             }
         }
+
+        while (self.prio_q.items.len > 0) _ = self.prio_q.remove();
 
         return self.dist[dest.loc.to_indx()];
     }
@@ -512,82 +513,6 @@ pub fn try_cheating(map: std.ArrayList(u8), dist_to_end: []u64, CHEAT_THRESHOLD:
                         }
                     }
                 }
-                // const up = dist_to_end[(i - 1) * map_width + j];
-                // const down = dist_to_end[(i + 1) * map_width + j];
-                // const right = dist_to_end[i * map_width + j + 1];
-                // const left = dist_to_end[i * map_width + j - 1];
-                // if (map.items[i * map_width + j - 1] != '#' and left != Graph.INF) {
-                //     //std.debug.print("considering {d},{d} => {d},{d}\n", .{ j, i, j - 1, i });
-                //     //std.debug.print("up {d}, down {d}, left {d}, right {d}\n", .{ up, down, left, right });
-                //     if (left < up and left < right and left < down) {
-                //         var max_saving: u64 = 0;
-                //         if (up != Graph.INF) {
-                //             max_saving = @max(up - left - 2, max_saving);
-                //         }
-                //         if (down != Graph.INF) {
-                //             max_saving = @max(down - left - 2, max_saving);
-                //         }
-                //         if (right != Graph.INF) {
-                //             max_saving = @max(right - left - 2, max_saving);
-                //         }
-                //         if (max_saving >= CHEAT_THRESHOLD) num_cheats += 1;
-                //         //std.debug.print("Savings of {d}\n", .{max_saving});
-                //     }
-                // }
-                // if (map.items[i * map_width + j + 1] != '#' and right != Graph.INF) {
-                //     //std.debug.print("considering {d},{d} => {d},{d}\n", .{ j, i, j + 1, i });
-                //     //std.debug.print("up {d}, down {d}, left {d}, right {d}\n", .{ up, down, left, right });
-                //     if (right < up and right < left and right < down) {
-                //         var max_saving: u64 = 0;
-                //         if (up != Graph.INF) {
-                //             max_saving = @max(up - right - 2, max_saving);
-                //         }
-                //         if (down != Graph.INF) {
-                //             max_saving = @max(down - right - 2, max_saving);
-                //         }
-                //         if (left != Graph.INF) {
-                //             max_saving = @max(left - right - 2, max_saving);
-                //         }
-                //         if (max_saving >= CHEAT_THRESHOLD) num_cheats += 1;
-                //         //std.debug.print("Savings of {d}\n", .{max_saving});
-                //     }
-                // }
-                // if (map.items[(i - 1) * map_width + j] != '#' and up != Graph.INF) {
-                //     //std.debug.print("considering {d},{d} => {d},{d}\n", .{ j, i, j, i - 1 });
-                //     //std.debug.print("up {d}, down {d}, left {d}, right {d}\n", .{ up, down, left, right });
-                //     if (up < right and up < left and up < down) {
-                //         var max_saving: u64 = 0;
-                //         if (right != Graph.INF) {
-                //             max_saving = @max(right - up - 2, max_saving);
-                //         }
-                //         if (down != Graph.INF) {
-                //             max_saving = @max(down - up - 2, max_saving);
-                //         }
-                //         if (left != Graph.INF) {
-                //             max_saving = @max(left - up - 2, max_saving);
-                //         }
-                //         if (max_saving >= CHEAT_THRESHOLD) num_cheats += 1;
-                //         //std.debug.print("Savings of {d}\n", .{max_saving});
-                //     }
-                // }
-                // if (map.items[(i + 1) * map_width + j] != '#' and down != Graph.INF) {
-                //     //std.debug.print("considering {d},{d} => {d},{d}\n", .{ j, i, j, i + 1 });
-                //     //std.debug.print("up {d}, down {d}, left {d}, right {d}\n", .{ up, down, left, right });
-                //     if (down < right and down < left and down < up) {
-                //         var max_saving: u64 = 0;
-                //         if (right != Graph.INF) {
-                //             max_saving = @max(right - down - 2, max_saving);
-                //         }
-                //         if (up != Graph.INF) {
-                //             max_saving = @max(up - down - 2, max_saving);
-                //         }
-                //         if (left != Graph.INF) {
-                //             max_saving = @max(left - down - 2, max_saving);
-                //         }
-                //         if (max_saving >= CHEAT_THRESHOLD) num_cheats += 1;
-                //         //std.debug.print("Savings of {d}\n", .{max_saving});
-                //     }
-                // }
             }
         }
     }
@@ -610,19 +535,26 @@ pub fn part1(file_name: []const u8, allocator: std.mem.Allocator) !u64 {
         map_width = line.len;
     }
     map_height = map.items.len / map_width;
-    print_map(map, true);
+    //print_map(map, true);
     var dist_to_end: []u64 = try allocator.alloc(u64, map.items.len);
     defer allocator.free(dist_to_end);
-    //const start = std.mem.indexOfScalar(u8, map.items, 'S').?;
+    for (0..dist_to_end.len) |i| {
+        dist_to_end[i] = Graph.INF;
+    }
+    const start = std.mem.indexOfScalar(u8, map.items, 'S').?;
     const end = std.mem.indexOfScalar(u8, map.items, 'E').?;
     var graph = try Graph.init(allocator, map);
-    for (0..dist_to_end.len) |i| {
-        dist_to_end[i] = std.math.maxInt(u64);
-        if (map.items[i] == '#') continue;
-        dist_to_end[i] = try graph.dijkstra(&graph.nodes.items[i], &graph.nodes.items[end]);
+    _ = try graph.dijkstra(&graph.nodes.items[start], &graph.nodes.items[end]);
+    var current_cost: u64 = 0;
+    var current_node: usize = end;
+    while (graph.prev[current_node].items.len > 0) {
+        dist_to_end[current_node] = current_cost;
+        current_cost += 1;
+        current_node = graph.prev[current_node].items[0].loc.to_indx();
     }
+    dist_to_end[start] = current_cost;
     //std.debug.print("{any}\n", .{dist_to_end});
-    print_costs(map, dist_to_end, true);
+    //print_costs(map, dist_to_end, true);
     graph.deinit();
     return try_cheating(map, dist_to_end, 100, 2);
 }
@@ -684,7 +616,6 @@ pub fn part1(file_name: []const u8, allocator: std.mem.Allocator) !u64 {
 // There are 3 cheats that save 76 picoseconds.
 // Find the best cheats using the updated cheating rules. How many cheats would save you at least 100 picoseconds?
 
-//TODO instead of just looking at the immediate neighbors look at all neighbors within 20 manhattan distance, for each . in map search a 20by20 grid around and see if theres a cheaper . to go to with atleast threshold savings
 pub fn part2(file_name: []const u8, allocator: std.mem.Allocator) !u64 {
     const f = try std.fs.cwd().openFile(file_name, .{});
     defer f.close();
@@ -701,19 +632,27 @@ pub fn part2(file_name: []const u8, allocator: std.mem.Allocator) !u64 {
         map_width = line.len;
     }
     map_height = map.items.len / map_width;
-    print_map(map, true);
+    //print_map(map, true);
     var dist_to_end: []u64 = try allocator.alloc(u64, map.items.len);
     defer allocator.free(dist_to_end);
-    //const start = std.mem.indexOfScalar(u8, map.items, 'S').?;
-    const end = std.mem.indexOfScalar(u8, map.items, 'E').?;
-    var graph = try Graph.init(allocator, map);
     for (0..dist_to_end.len) |i| {
-        dist_to_end[i] = std.math.maxInt(u64);
-        if (map.items[i] == '#') continue;
-        dist_to_end[i] = try graph.dijkstra(&graph.nodes.items[i], &graph.nodes.items[end]);
+        dist_to_end[i] = Graph.INF;
     }
+    const start = std.mem.indexOfScalar(u8, map.items, 'S').?;
+    const end = std.mem.indexOfScalar(u8, map.items, 'E').?;
+    dist_to_end[start] = 0;
+    var graph = try Graph.init(allocator, map);
+    _ = try graph.dijkstra(&graph.nodes.items[start], &graph.nodes.items[end]);
+    var current_cost: u64 = 0;
+    var current_node: usize = end;
+    while (graph.prev[current_node].items.len > 0) {
+        dist_to_end[current_node] = current_cost;
+        current_cost += 1;
+        current_node = graph.prev[current_node].items[0].loc.to_indx();
+    }
+    dist_to_end[start] = current_cost;
     //std.debug.print("{any}\n", .{dist_to_end});
-    print_costs(map, dist_to_end, true);
+    //print_costs(map, dist_to_end, true);
     graph.deinit();
     return try_cheating(map, dist_to_end, 100, 20);
 }
