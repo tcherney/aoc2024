@@ -126,7 +126,7 @@ const nl = "\n";
 
 const term_on = screen_buf_on ++ cursor_hide ++ cursor_home ++ screen_clear ++ color_def;
 const term_off = screen_buf_off ++ cursor_show ++ nl;
-var num_buf: [1024]u8 = undefined;
+var num_buf: [4096]u8 = undefined;
 var scratch_str: std.ArrayList(u8) = undefined;
 const DEBUG = false;
 var map_width: usize = 0;
@@ -527,424 +527,1308 @@ pub fn Graph(comptime T: @Type(.EnumLiteral)) type {
 
 pub const KeypadRobot = struct {
     allocator: std.mem.Allocator,
-    seven: *GraphType.NodeType,
-    eight: *GraphType.NodeType,
-    nine: *GraphType.NodeType,
-    four: *GraphType.NodeType,
-    five: *GraphType.NodeType,
-    six: *GraphType.NodeType,
-    one: *GraphType.NodeType,
-    two: *GraphType.NodeType,
-    three: *GraphType.NodeType,
-    zero: *GraphType.NodeType,
-    activate: *GraphType.NodeType,
-    graph: GraphType,
-    paths: std.ArrayList(std.ArrayList(u8)),
-    pub const GraphType = Graph(.Index);
+    path: std.ArrayList(u8),
+    keymap: std.AutoHashMap(KeypadKey, std.ArrayList(u8)),
+    pub const KeypadKey = struct {
+        a: u8,
+        b: u8,
+    };
     pub fn init(allocator: std.mem.Allocator) !KeypadRobot {
-        var graph = GraphType{
-            .nodes = try std.ArrayList(GraphType.NodeType).initCapacity(allocator, 11),
-            .allocator = allocator,
-            .dist = try allocator.alloc(u64, 11),
-            .prev = try allocator.alloc(std.ArrayList(GraphType.PrevNode), 11),
-            .paths = std.ArrayList(std.ArrayList(u8)).init(allocator),
-        };
-        for (0..graph.prev.len) |i| {
-            graph.prev[i] = std.ArrayList(GraphType.PrevNode).init(allocator);
-        }
-        for (0..11) |i| {
-            try graph.nodes.append(try GraphType.NodeType.init(Location(.Index).init(i), allocator));
-        }
-        const ret = KeypadRobot{ .allocator = allocator, .seven = &graph.nodes.items[0], .eight = &graph.nodes.items[1], .nine = &graph.nodes.items[2], .four = &graph.nodes.items[3], .five = &graph.nodes.items[4], .six = &graph.nodes.items[5], .one = &graph.nodes.items[6], .two = &graph.nodes.items[7], .three = &graph.nodes.items[8], .zero = &graph.nodes.items[9], .activate = &graph.nodes.items[10], .graph = graph, .paths = std.ArrayList(std.ArrayList(u8)).init(allocator) };
-        try ret.seven.add_edge_label(ret.eight, 1, '>');
-        try ret.seven.add_edge_label(ret.four, 1, 'v');
-
-        try ret.eight.add_edge_label(ret.seven, 1, '<');
-        try ret.eight.add_edge_label(ret.nine, 1, '>');
-        try ret.eight.add_edge_label(ret.five, 1, 'v');
-
-        try ret.nine.add_edge_label(ret.eight, 1, '<');
-        try ret.nine.add_edge_label(ret.six, 1, 'v');
-
-        try ret.four.add_edge_label(ret.seven, 1, '^');
-        try ret.four.add_edge_label(ret.five, 1, '>');
-        try ret.four.add_edge_label(ret.one, 1, 'v');
-
-        try ret.five.add_edge_label(ret.eight, 1, '^');
-        try ret.five.add_edge_label(ret.six, 1, '>');
-        try ret.five.add_edge_label(ret.two, 1, 'v');
-        try ret.five.add_edge_label(ret.four, 1, '<');
-
-        try ret.six.add_edge_label(ret.nine, 1, '^');
-        try ret.six.add_edge_label(ret.five, 1, '<');
-        try ret.six.add_edge_label(ret.three, 1, 'v');
-
-        try ret.one.add_edge_label(ret.four, 1, '^');
-        try ret.one.add_edge_label(ret.two, 1, '>');
-
-        try ret.two.add_edge_label(ret.one, 1, '<');
-        try ret.two.add_edge_label(ret.five, 1, '^');
-        try ret.two.add_edge_label(ret.three, 1, '>');
-
-        try ret.three.add_edge_label(ret.six, 1, '^');
-        try ret.three.add_edge_label(ret.two, 1, '<');
-        try ret.three.add_edge_label(ret.activate, 1, 'v');
-
-        try ret.zero.add_edge_label(ret.two, 1, '^');
-        try ret.zero.add_edge_label(ret.activate, 1, '>');
-
-        try ret.activate.add_edge_label(ret.three, 1, '^');
-        try ret.activate.add_edge_label(ret.zero, 1, '<');
-
+        var ret = KeypadRobot{ .allocator = allocator, .path = std.ArrayList(u8).init(allocator), .keymap = std.AutoHashMap(KeypadKey, std.ArrayList(u8)).init(allocator) };
+        try ret.cache_key_paths();
         return ret;
     }
     pub fn deinit(self: *KeypadRobot) void {
-        self.graph.deinit();
-        for (0..self.paths.items.len) |i| {
-            self.paths.items[i].deinit();
+        var it = self.keymap.valueIterator();
+        while (it.next()) |val| {
+            val.deinit();
         }
-        self.paths.deinit();
+        self.keymap.deinit();
+        self.path.deinit();
+    }
+
+    pub fn cache_key_paths(self: *KeypadRobot) !void {
+        //0 -> all
+        var entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '0',
+            .b = '0',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '0',
+            .b = '1',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("^<A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '0',
+            .b = '2',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("^A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '0',
+            .b = '3',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("^>A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '0',
+            .b = '4',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("^^<A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '0',
+            .b = '5',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("^^A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '0',
+            .b = '6',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("^^>A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '0',
+            .b = '7',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("^^^<A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '0',
+            .b = '8',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("^^^A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '0',
+            .b = '9',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("^^^>A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '0',
+            .b = 'A',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write(">A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        //1 -> all
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '1',
+            .b = '0',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write(">vA");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '1',
+            .b = '1',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '1',
+            .b = '2',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write(">A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '1',
+            .b = '3',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write(">>A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '1',
+            .b = '4',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("^A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '1',
+            .b = '5',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("^>A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '1',
+            .b = '6',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("^>>A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '1',
+            .b = '7',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("^^A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '1',
+            .b = '8',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("^^>A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '1',
+            .b = '9',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("^^>>A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '1',
+            .b = 'A',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write(">>vA");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        //2 -> all
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '2',
+            .b = '0',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("vA");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '2',
+            .b = '1',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("<A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '2',
+            .b = '2',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '2',
+            .b = '3',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write(">A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '2',
+            .b = '4',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("<^A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '2',
+            .b = '5',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("^A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '2',
+            .b = '6',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("^>A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '2',
+            .b = '7',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("<^^A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '2',
+            .b = '8',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("^^A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '2',
+            .b = '9',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("^^>A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '2',
+            .b = 'A',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("v>A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        //3 -> all
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '3',
+            .b = '0',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("<vA");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '3',
+            .b = '1',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("<<A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '3',
+            .b = '2',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("<A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '3',
+            .b = '3',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '3',
+            .b = '4',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("<<^A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '3',
+            .b = '5',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("<^A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '3',
+            .b = '6',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("^A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '3',
+            .b = '7',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("<<^^A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '3',
+            .b = '8',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("<^^A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '3',
+            .b = '9',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("^^A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '3',
+            .b = 'A',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("vA");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        //4 -> all
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '4',
+            .b = '0',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write(">vvA");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '4',
+            .b = '1',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("vA");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '4',
+            .b = '2',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("v>A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '4',
+            .b = '3',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("v>>A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '4',
+            .b = '4',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '4',
+            .b = '5',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write(">A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '4',
+            .b = '6',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write(">>A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '4',
+            .b = '7',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("^A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '4',
+            .b = '8',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("^>A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '4',
+            .b = '9',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("^>>A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '4',
+            .b = 'A',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write(">>vvA");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        //5 -> all
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '5',
+            .b = '0',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("vvA");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '5',
+            .b = '1',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("<vA");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '5',
+            .b = '2',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("vA");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '5',
+            .b = '3',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("v>A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '5',
+            .b = '4',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("<A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '5',
+            .b = '5',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '5',
+            .b = '6',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write(">A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '5',
+            .b = '7',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("<^A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '5',
+            .b = '8',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("^A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '5',
+            .b = '9',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("^>A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '5',
+            .b = 'A',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("vv>A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        //6 -> all
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '6',
+            .b = '0',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("<vvA");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '6',
+            .b = '1',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("<<vA");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '6',
+            .b = '2',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("<vA");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '6',
+            .b = '3',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("vA");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '6',
+            .b = '4',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("<<A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '6',
+            .b = '5',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("<A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '6',
+            .b = '6',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '6',
+            .b = '7',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("<<^A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '6',
+            .b = '8',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("<^A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '6',
+            .b = '9',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("^A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '6',
+            .b = 'A',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("vvA");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        //7 -> all
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '7',
+            .b = '0',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write(">vvvA");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '7',
+            .b = '1',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("vvA");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '7',
+            .b = '2',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("vv>A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '7',
+            .b = '3',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("vv>>A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '7',
+            .b = '4',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("vA");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '7',
+            .b = '5',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("v>A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '7',
+            .b = '6',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("v>>A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '7',
+            .b = '7',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '7',
+            .b = '8',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write(">A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '7',
+            .b = '9',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write(">>A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '7',
+            .b = 'A',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write(">>vvvA");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        //8 -> all
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '8',
+            .b = '0',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("vvvA");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '8',
+            .b = '1',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("<vvA");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '8',
+            .b = '2',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("vvA");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '8',
+            .b = '3',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("vv>A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '8',
+            .b = '4',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("<vA");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '8',
+            .b = '5',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("vA");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '8',
+            .b = '6',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("v>A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '8',
+            .b = '7',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("<A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '8',
+            .b = '8',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '8',
+            .b = '9',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write(">A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '8',
+            .b = 'A',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("vvv>A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        //9 -> all
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '9',
+            .b = '0',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("vvv<A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '9',
+            .b = '1',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("<<vvA");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '9',
+            .b = '2',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("<vvA");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '9',
+            .b = '3',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("vvA");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '9',
+            .b = '4',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("<<vA");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '9',
+            .b = '5',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("<vA");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '9',
+            .b = '6',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("vA");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '9',
+            .b = '7',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("<<A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '9',
+            .b = '8',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("<A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '9',
+            .b = '9',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = '9',
+            .b = 'A',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("vvvA");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        //A -> all
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = 'A',
+            .b = '0',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("<A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = 'A',
+            .b = '1',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("^<<A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = 'A',
+            .b = '2',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("<^A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = 'A',
+            .b = '3',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("^A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = 'A',
+            .b = '4',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("^^<<A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = 'A',
+            .b = '5',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("<^^A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = 'A',
+            .b = '6',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("^^A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = 'A',
+            .b = '7',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("^^^<<A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = 'A',
+            .b = '8',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("<^^^A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = 'A',
+            .b = '9',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("^^^A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(KeypadKey{
+            .a = 'A',
+            .b = 'A',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
     }
 
     pub fn run(self: *KeypadRobot, keypad_input: std.ArrayList(u8)) !void {
-        var start_node = self.activate;
-        var end_node: *KeypadRobot.GraphType.NodeType = undefined;
-        for (0..self.paths.items.len) |i| {
-            self.paths.items[i].clearAndFree();
-        }
-        self.paths.clearAndFree();
+        self.path.clearRetainingCapacity();
+        var curr_key: u8 = 'A';
         for (0..keypad_input.items.len) |i| {
-            switch (keypad_input.items[i]) {
-                '0' => {
-                    end_node = self.zero;
-                },
-                '1' => {
-                    end_node = self.one;
-                },
-                '2' => {
-                    end_node = self.two;
-                },
-                '3' => {
-                    end_node = self.three;
-                },
-                '4' => {
-                    end_node = self.four;
-                },
-                '5' => {
-                    end_node = self.five;
-                },
-                '6' => {
-                    end_node = self.six;
-                },
-                '7' => {
-                    end_node = self.seven;
-                },
-                '8' => {
-                    end_node = self.eight;
-                },
-                '9' => {
-                    end_node = self.nine;
-                },
-                'A' => {
-                    end_node = self.activate;
-                },
-                else => unreachable,
-            }
-            _ = try self.graph.dijkstra(start_node, end_node, .All);
-            try self.graph.trace_path(end_node.loc.to_indx());
-            if (self.paths.items.len == 0) {
-                for (0..self.graph.paths.items.len) |j| {
-                    //std.debug.print("Path: {d}: {s}\n", .{ j, self.graph.paths.items[j].items });
-                    try self.paths.append(std.ArrayList(u8).init(self.allocator));
-                    _ = try self.paths.items[self.paths.items.len - 1].writer().write(self.graph.paths.items[j].items);
-                    try self.paths.items[self.paths.items.len - 1].append('A');
-                }
-                // for (0..self.paths.items.len) |j| {
-                //     std.debug.print("So far: {s}\n", .{self.paths.items[j].items});
-                // }
-            } else {
-                const NUM_PATH_START = self.paths.items.len;
-                const num_to_clone = self.graph.paths.items.len - 1;
-                var clone_count: usize = 0;
-                while (clone_count < num_to_clone) : (clone_count += 1) {
-                    for (0..NUM_PATH_START) |j| {
-                        try self.paths.append(try self.paths.items[j].clone());
-                    }
-                }
-
-                for (0..self.graph.paths.items.len) |k| {
-                    //std.debug.print("Path: {d}: {s}\n", .{ k, self.graph.paths.items[k].items });
-                    for (0..NUM_PATH_START) |j| {
-                        _ = try self.paths.items[j + (k * NUM_PATH_START)].writer().write(self.graph.paths.items[k].items);
-                        try self.paths.items[j + (k * NUM_PATH_START)].append('A');
-                    }
-                }
-
-                // for (0..self.paths.items.len) |j| {
-                //     std.debug.print("So far: {s}\n", .{self.paths.items[j].items});
-                // }
-            }
-            start_node = end_node;
-        }
-        for (0..self.paths.items.len) |i| {
-            std.debug.print("{s}\n", .{self.paths.items[i].items});
+            const next_key = keypad_input.items[i];
+            _ = try self.path.writer().write(self.keymap.get(.{ .a = curr_key, .b = next_key }).?.items);
+            curr_key = next_key;
         }
     }
 };
 
 pub const DirectionalRobot = struct {
     allocator: std.mem.Allocator,
-    up: *GraphType.NodeType,
-    activate: *GraphType.NodeType,
-    left: *GraphType.NodeType,
-    down: *GraphType.NodeType,
-    right: *GraphType.NodeType,
-    graph: GraphType,
-    path: std.ArrayList(u8),
-    path_cache: std.StringHashMap(std.ArrayList(u8)),
+    keymap: std.AutoHashMap(DirKey, std.ArrayList(u8)),
+    score_cache: std.BufMap,
+    score_key: std.ArrayList(u8),
+    pub const DirKey = struct {
+        a: u8,
+        b: u8,
+    };
     pub const GraphType = Graph(.Index);
     pub fn init(allocator: std.mem.Allocator) !DirectionalRobot {
-        var graph = GraphType{
-            .nodes = try std.ArrayList(GraphType.NodeType).initCapacity(allocator, 5),
+        var ret = DirectionalRobot{
             .allocator = allocator,
-            .dist = try allocator.alloc(u64, 5),
-            .prev = try allocator.alloc(std.ArrayList(GraphType.PrevNode), 5),
-            .paths = std.ArrayList(std.ArrayList(u8)).init(allocator),
+            .keymap = std.AutoHashMap(DirKey, std.ArrayList(u8)).init(allocator),
+            .score_cache = std.BufMap.init(allocator),
+            .score_key = std.ArrayList(u8).init(allocator),
         };
-        for (0..graph.prev.len) |i| {
-            graph.prev[i] = std.ArrayList(GraphType.PrevNode).init(allocator);
-        }
-        for (0..11) |i| {
-            try graph.nodes.append(try GraphType.NodeType.init(Location(.Index).init(i), allocator));
-        }
-        const ret = DirectionalRobot{
-            .allocator = allocator,
-            .up = &graph.nodes.items[0],
-            .activate = &graph.nodes.items[1],
-            .left = &graph.nodes.items[2],
-            .down = &graph.nodes.items[3],
-            .right = &graph.nodes.items[4],
-            .graph = graph,
-            .path = std.ArrayList(u8).init(allocator),
-            .path_cache = std.StringHashMap(std.ArrayList(u8)).init(allocator),
-        };
-        try ret.up.add_edge_label(ret.activate, 1, '>');
-        try ret.up.add_edge_label(ret.down, 1, 'v');
-
-        try ret.activate.add_edge_label(ret.up, 1, '<');
-        try ret.activate.add_edge_label(ret.right, 1, 'v');
-
-        try ret.left.add_edge_label(ret.down, 1, '>');
-
-        try ret.down.add_edge_label(ret.up, 1, '^');
-        try ret.down.add_edge_label(ret.left, 1, '<');
-        try ret.down.add_edge_label(ret.right, 1, '>');
-
-        try ret.right.add_edge_label(ret.activate, 1, '^');
-        try ret.right.add_edge_label(ret.down, 1, '<');
+        try ret.cache_dir_paths();
 
         return ret;
     }
     pub fn deinit(self: *DirectionalRobot) void {
-        self.graph.deinit();
-        self.path.deinit();
-        var it = self.path_cache.valueIterator();
+        var it = self.keymap.valueIterator();
         while (it.next()) |val| {
             val.deinit();
         }
-        self.path_cache.deinit();
+        self.keymap.deinit();
+        self.score_key.deinit();
+        self.score_cache.deinit();
     }
 
     pub fn cache_dir_paths(self: *DirectionalRobot) !void {
-        _ = try self.graph.dijkstra(self.activate, self.up, .All);
-        try self.graph.trace_path(self.up.loc.to_indx());
-        var entry = try self.path_cache.getOrPut("^");
+        //^ -> all
+        var entry = try self.keymap.getOrPut(DirKey{
+            .a = '^',
+            .b = '^',
+        });
         entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
-        _ = try entry.value_ptr.writer().write(self.graph.paths.items[0].items);
-        try entry.value_ptr.append('A');
-        std.debug.print("^ {s}\n", .{entry.value_ptr.items});
+        _ = try entry.value_ptr.writer().write("A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
 
-        _ = try self.graph.dijkstra(self.activate, self.right, .All);
-        try self.graph.trace_path(self.right.loc.to_indx());
-        entry = try self.path_cache.getOrPut(">");
+        entry = try self.keymap.getOrPut(DirKey{
+            .a = '^',
+            .b = 'v',
+        });
         entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
-        _ = try entry.value_ptr.writer().write(self.graph.paths.items[0].items);
-        try entry.value_ptr.append('A');
-        std.debug.print("> {s}\n", .{entry.value_ptr.items});
+        _ = try entry.value_ptr.writer().write("vA");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
 
-        _ = try self.graph.dijkstra(self.activate, self.down, .All);
-        try self.graph.trace_path(self.down.loc.to_indx());
-        entry = try self.path_cache.getOrPut("v");
+        entry = try self.keymap.getOrPut(DirKey{
+            .a = '^',
+            .b = 'A',
+        });
         entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
-        _ = try entry.value_ptr.writer().write(self.graph.paths.items[0].items);
-        try entry.value_ptr.append('A');
-        std.debug.print("v {s}\n", .{entry.value_ptr.items});
+        _ = try entry.value_ptr.writer().write(">A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
 
-        _ = try self.graph.dijkstra(self.activate, self.left, .All);
-        try self.graph.trace_path(self.left.loc.to_indx());
-        entry = try self.path_cache.getOrPut("<");
+        entry = try self.keymap.getOrPut(DirKey{
+            .a = '^',
+            .b = '<',
+        });
         entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
-        _ = try entry.value_ptr.writer().write(self.graph.paths.items[0].items);
-        try entry.value_ptr.append('A');
-        std.debug.print("< {s}\n", .{entry.value_ptr.items});
+        _ = try entry.value_ptr.writer().write("v<A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
 
-        entry = try self.path_cache.getOrPut("A");
+        entry = try self.keymap.getOrPut(DirKey{
+            .a = '^',
+            .b = '>',
+        });
         entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
-        try entry.value_ptr.append('A');
-        std.debug.print("A {s}\n", .{entry.value_ptr.items});
+        _ = try entry.value_ptr.writer().write("v>A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        //< -> all
+        entry = try self.keymap.getOrPut(DirKey{
+            .a = '<',
+            .b = '^',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write(">^A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(DirKey{
+            .a = '<',
+            .b = 'v',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write(">A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(DirKey{
+            .a = '<',
+            .b = 'A',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write(">>^A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(DirKey{
+            .a = '<',
+            .b = '<',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(DirKey{
+            .a = '<',
+            .b = '>',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write(">>A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+        //v -> all
+        entry = try self.keymap.getOrPut(DirKey{
+            .a = 'v',
+            .b = '^',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("^A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(DirKey{
+            .a = 'v',
+            .b = 'v',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(DirKey{
+            .a = 'v',
+            .b = 'A',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("^>A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(DirKey{
+            .a = 'v',
+            .b = '<',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("<A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(DirKey{
+            .a = 'v',
+            .b = '>',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write(">A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+        //> -> all
+        entry = try self.keymap.getOrPut(DirKey{
+            .a = '>',
+            .b = '^',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("<^A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(DirKey{
+            .a = '>',
+            .b = 'v',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("<A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(DirKey{
+            .a = '>',
+            .b = 'A',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("^A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(DirKey{
+            .a = '>',
+            .b = '<',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("<<A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(DirKey{
+            .a = '>',
+            .b = '>',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+        //A -> all
+        entry = try self.keymap.getOrPut(DirKey{
+            .a = 'A',
+            .b = '^',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("<A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(DirKey{
+            .a = 'A',
+            .b = 'v',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("<vA");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(DirKey{
+            .a = 'A',
+            .b = 'A',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(DirKey{
+            .a = 'A',
+            .b = '<',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("v<<A");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
+
+        entry = try self.keymap.getOrPut(DirKey{
+            .a = 'A',
+            .b = '>',
+        });
+        entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
+        _ = try entry.value_ptr.writer().write("vA");
+        //std.debug.print("({c},{c}) {s}\n", .{ entry.key_ptr.a, entry.key_ptr.b, entry.value_ptr.items });
     }
 
-    pub fn run(self: *DirectionalRobot, keypad_input: std.ArrayList(u8)) !u64 {
-        self.path.clearRetainingCapacity();
-        var curr_start: u64 = 0;
-        var curr_end: u64 = std.mem.indexOfScalar(u8, keypad_input.items, 'A') orelse keypad_input.items.len;
-        //var sub_str_start = curr_start;
-        //var sub_str_end = curr_end;
-        while (curr_start < keypad_input.items.len) {
-            std.debug.print("Substr {s}\n", .{keypad_input.items[curr_start..curr_end]});
-            if (!self.path_cache.contains(keypad_input.items[curr_start..curr_end])) {
-                const curr_path_end: usize = self.path.items.len;
-                const substr_start = curr_start;
-                while (curr_start < curr_end) {
-                    std.debug.print("key {s}\n", .{keypad_input.items[curr_start .. curr_start + 1]});
-                    _ = try self.path.writer().write(self.path_cache.get(keypad_input.items[curr_start .. curr_start + 1]).?.items);
-                    curr_start += 1;
-                }
-                _ = try self.path.writer().write(self.path_cache.get("A").?.items);
-                var entry = try self.path_cache.getOrPut(keypad_input.items[substr_start..curr_end]);
-                entry.value_ptr.* = std.ArrayList(u8).init(self.allocator);
-                _ = try entry.value_ptr.writer().write(self.path.items[curr_path_end .. self.path.items.len - 1]);
-            } else {
-                _ = try self.path.writer().write(self.path_cache.get(keypad_input.items[curr_start..curr_end]).?.items);
-            }
-            std.debug.print("Path partial: {s}\n", .{self.path.items});
-            curr_start = curr_end + 1;
-            curr_end = std.mem.indexOfScalarPos(u8, keypad_input.items, curr_start, 'A') orelse keypad_input.items.len;
+    pub fn score(self: *DirectionalRobot, a: u8, b: u8, level: u128) !u128 {
+        //std.debug.print("a: {c}, b: {c}, level {d}\n", .{ a, b, level });
+        const next = self.keymap.get(.{ .a = a, .b = b }).?;
+        //std.debug.print("{s}", .{next.items});
+        if (level == 1) {
+            return next.items.len;
         }
-        // for (0..keypad_input.items.len) |i| {
-        //     switch (keypad_input.items[i]) {
-        //         '<' => {
-        //             end_node = self.left;
-        //         },
-        //         '^' => {
-        //             end_node = self.up;
-        //         },
-        //         '>' => {
-        //             end_node = self.right;
-        //         },
-        //         'v' => {
-        //             end_node = self.down;
-        //         },
-        //         'A' => {
-        //             end_node = self.activate;
-        //         },
-        //         else => unreachable,
-        //     }
-        //     total_cost += try self.graph.dijkstra(start_node, end_node, .All);
-        //     try self.graph.trace_path(end_node.loc.to_indx());
-        //     if (self.paths.items.len == 0) {
-        //         for (0..self.graph.paths.items.len) |j| {
-        //             //std.debug.print("Path: {d}: {s}\n", .{ j, self.graph.paths.items[j].items });
-        //             try self.paths.append(Path{
-        //                 .path = std.ArrayList(u8).init(self.allocator),
-        //                 .cost = total_cost,
-        //             });
-        //             _ = try self.paths.items[self.paths.items.len - 1].path.writer().write(self.graph.paths.items[j].items);
-        //             try self.paths.items[self.paths.items.len - 1].path.append('A');
-        //         }
-        //         // for (0..self.paths.items.len) |j| {
-        //         //     std.debug.print("So far: {s}\n", .{self.paths.items[j].items});
-        //         // }
-        //     } else {
-        //         const NUM_PATH_START = self.paths.items.len;
-        //         const num_to_clone = self.graph.paths.items.len - 1;
-        //         var clone_count: usize = 0;
-        //         while (clone_count < num_to_clone) : (clone_count += 1) {
-        //             for (0..NUM_PATH_START) |j| {
-        //                 try self.paths.append(Path{
-        //                     .path = try self.paths.items[j].path.clone(),
-        //                     .cost = 0,
-        //                 });
-        //             }
-        //         }
+        self.score_key.clearRetainingCapacity();
+        _ = try self.score_key.writer().print("{s}{d}", .{ next.items, level });
+        if (self.score_cache.get(self.score_key.items) != null) {
+            //std.debug.print("Found value at {s} with value {s} as num {d}\n", .{ self.score_key.items, self.score_cache.get(self.score_key.items).?, try std.fmt.parseInt(u128, self.score_cache.get(self.score_key.items).?, 10) });
+            return try std.fmt.parseInt(u128, self.score_cache.get(self.score_key.items).?, 10);
+        }
+        var total: u128 = 0;
+        var curr_key: u8 = 'A';
+        for (0..next.items.len) |i| {
+            const next_key = next.items[i];
+            total += try self.score(curr_key, next_key, level - 1);
+            curr_key = next_key;
+        }
+        self.score_key.clearRetainingCapacity();
+        _ = try self.score_key.writer().print("{s}{d}", .{ next.items, level });
+        //std.debug.print("Second Level Total: {d} Storing {s} in cache at {s}\n", .{ total, try std.fmt.bufPrint(&num_buf, "{d}", .{total}), self.score_key.items });
+        try self.score_cache.put(self.score_key.items, try std.fmt.bufPrint(&num_buf, "{d}", .{total}));
+        return total;
+    }
 
-        //         for (0..self.graph.paths.items.len) |k| {
-        //             //std.debug.print("Path: {d}: {s}\n", .{ k, self.graph.paths.items[k].items });
-        //             for (0..NUM_PATH_START) |j| {
-        //                 _ = try self.paths.items[j + (k * NUM_PATH_START)].path.writer().write(self.graph.paths.items[k].items);
-        //                 try self.paths.items[j + (k * NUM_PATH_START)].path.append('A');
-        //                 self.paths.items[j + (k * NUM_PATH_START)].cost = total_cost;
-        //             }
-        //         }
-        //     }
-        //     start_node = end_node;
-        // }
-        // for (0..self.paths.items.len) |j| {
-        //     std.debug.print("So far: {d} {d}\n", .{ self.paths.items[j].cost, j });
-        // }
-        std.debug.print("Path: {s} {d}\n", .{ self.path.items, self.path.items.len });
-        return self.path.items.len;
+    pub fn run(self: *DirectionalRobot, keypad_input: std.ArrayList(u8), keypad_cost: u128, levels: u128) !u128 {
+        var path = std.ArrayList(u8).init(self.allocator);
+        defer path.deinit();
+
+        try path.append('A');
+        var curr_key: u8 = 'A';
+        for (0..keypad_input.items.len) |i| {
+            const next_key = keypad_input.items[i];
+            _ = try path.writer().write(self.keymap.get(.{ .a = curr_key, .b = next_key }).?.items);
+            curr_key = next_key;
+        }
+        //std.debug.print("Second level: ", .{});
+        var total: u128 = 0;
+        for (0..path.items.len - 1) |i| {
+            total += try self.score(path.items[i], path.items[i + 1], levels);
+        }
+        //std.debug.print("\n", .{});
+        //std.debug.print("Input: {s}, First level: {s}\n", .{ keypad_input.items, path.items });
+        //std.debug.print("Total: {d} Keypad: {d} = {d}\n", .{ total, keypad_cost, total * keypad_cost });
+        return total * keypad_cost;
     }
 };
 
-pub fn print_map(map: std.ArrayList(u8), with_color: bool) void {
-    std.debug.print("width {d} height {d}\n", .{ map_width, map_height });
-    std.debug.print(" ", .{});
-    for (0..map_width) |j| {
-        std.debug.print("{d}", .{j % 10});
-    }
-    std.debug.print("\n", .{});
-    for (0..map_height) |i| {
-        for (0..map_width) |j| {
-            if (j == 0) {
-                std.debug.print("{d}", .{i % 10});
-            }
-            switch (map.items[i * map_width + j]) {
-                '#' => if (with_color) std.debug.print("{s}{c}" ++ colors.end, .{ colors.red, map.items[i * map_width + j] }) else std.debug.print("{c}", .{map.items[i * map_width + j]}),
-                '.' => if (with_color) std.debug.print("{s}{c}" ++ colors.end, .{ colors.green, map.items[i * map_width + j] }) else std.debug.print("{c}", .{map.items[i * map_width + j]}),
-                'S', 'E', '1', '2' => if (with_color) std.debug.print("{s}{c}" ++ colors.end, .{ colors.yellow, map.items[i * map_width + j] }) else std.debug.print("{c}", .{map.items[i * map_width + j]}),
-                'O' => if (with_color) std.debug.print("{s}{c}" ++ colors.end, .{ colors.magenta, map.items[i * map_width + j] }) else std.debug.print("{c}", .{map.items[i * map_width + j]}),
-                else => unreachable,
-            }
-        }
-        std.debug.print("\n", .{});
-    }
+pub fn calc_keypad_cost(keypad_input: std.ArrayList(u8)) !u128 {
+    return try std.fmt.parseInt(u128, keypad_input.items[0 .. keypad_input.items.len - 1], 10);
 }
 
-pub fn print_costs(map: std.ArrayList(u8), dist: []u64, with_color: bool) void {
-    std.debug.print("width {d} height {d}\n", .{ map_width, map_height });
-    std.debug.print(" ", .{});
-    for (0..map_width) |j| {
-        std.debug.print("{d:5}", .{j % 10});
-    }
-    std.debug.print("\n", .{});
-    for (0..map_height) |i| {
-        for (0..map_width) |j| {
-            if (j == 0) {
-                std.debug.print("{d:5}", .{i % 10});
-            }
-            switch (map.items[i * map_width + j]) {
-                '#' => if (with_color) std.debug.print("{s}{c:5}" ++ colors.end, .{ colors.red, map.items[i * map_width + j] }) else std.debug.print("{c:5}", .{map.items[i * map_width + j]}),
-                else => if (with_color) std.debug.print("{s}{d:5}" ++ colors.end, .{ colors.magenta, dist[i * map_width + j] }) else std.debug.print("{d:5}", .{dist[i * map_width + j]}),
-            }
-        }
-        std.debug.print("\n", .{});
-    }
-}
-
-pub fn run_robots(directional_robots: std.ArrayList(DirectionalRobot), curr_bot: usize, MAX_BOTS: usize) !void {
-    if (curr_bot < MAX_BOTS) {
-        for (0..directional_robots.items[curr_bot - 1].paths.items.len) |j| {
-            _ = try directional_robots.items[curr_bot].run(directional_robots.items[curr_bot - 1].paths.items[j].path);
-        }
-        for (0..directional_robots.items[curr_bot].paths.items.len) |k| {
-            std.debug.print("{s} {d}\n", .{ directional_robots.items[curr_bot].paths.items[k].path.items, directional_robots.items[curr_bot].paths.items[k].path.items.len });
-        }
-        try run_robots(directional_robots, curr_bot + 1, MAX_BOTS);
-    }
-}
-
-pub fn part1(file_name: []const u8, allocator: std.mem.Allocator) !u64 {
+pub fn part1(file_name: []const u8, allocator: std.mem.Allocator) !u128 {
     const f = try std.fs.cwd().openFile(file_name, .{});
     defer f.close();
     var buf: [65536]u8 = undefined;
@@ -964,44 +1848,52 @@ pub fn part1(file_name: []const u8, allocator: std.mem.Allocator) !u64 {
     defer keypad_robot.deinit();
 
     var directional_robot = try DirectionalRobot.init(allocator);
-    try directional_robot.cache_dir_paths();
     defer directional_robot.deinit();
-    try keypad_robot.run(keypad_input.items[0]);
-    _ = try directional_robot.run(keypad_robot.paths.items[0]);
-    // var directional_robots = std.ArrayList(DirectionalRobot).init(allocator);
-    // defer directional_robots.deinit();
-    // for (0..MAX_BOTS) |_| {
-    //     try directional_robots.append(try DirectionalRobot.init(allocator));
-    // }
-
-    // for (0..keypad_input.items.len) |i| {
-    //     if (i > 0) break;
-    //     std.debug.print("Key Input: {s}\n", .{keypad_input.items[i].items});
-    //     try keypad_robot.run(keypad_input.items[i]);
-    //     for (0..keypad_robot.paths.items.len) |j| {
-    //         if (j > 0) break;
-    //         _ = try directional_robots.items[0].run(keypad_robot.paths.items[j]);
-    //     }
-    //     for (0..directional_robots.items[0].paths.items.len) |k| {
-    //         std.debug.print("{s} {d}\n", .{ directional_robots.items[0].paths.items[k].path.items, directional_robots.items[0].paths.items[k].path.items.len });
-    //     }
-    //     //try run_robots(directional_robots, 1, MAX_BOTS);
-    // }
-
-    // for (0..directional_robots.items.len) |i| {
-    //     directional_robots.items[i].deinit();
-    // }
+    var total: u128 = 0;
+    for (0..keypad_input.items.len) |i| {
+        try keypad_robot.run(keypad_input.items[i]);
+        // for all viable paths
+        total += try directional_robot.run(keypad_robot.path, try calc_keypad_cost(keypad_input.items[i]), 1);
+    }
 
     for (0..keypad_input.items.len) |i| {
         keypad_input.items[i].deinit();
     }
-    return 0;
+    return total;
 }
 
-pub fn part2(file_name: []const u8, allocator: std.mem.Allocator) !u64 {
-    _ = file_name;
-    _ = allocator;
-    return 0;
+pub fn part2(file_name: []const u8, allocator: std.mem.Allocator) !u128 {
+    const f = try std.fs.cwd().openFile(file_name, .{});
+    defer f.close();
+    var buf: [65536]u8 = undefined;
+    var keypad_input = std.ArrayList(std.ArrayList(u8)).init(allocator);
+    defer keypad_input.deinit();
+    while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |unfiltered| {
+        var line = unfiltered;
+        if (std.mem.indexOfScalar(u8, unfiltered, '\r')) |indx| {
+            line = unfiltered[0..indx];
+        }
+        if (line.len == 0) continue;
+        try keypad_input.append(std.ArrayList(u8).init(allocator));
+        _ = try keypad_input.items[keypad_input.items.len - 1].writer().write(line);
+    }
+    //const MAX_BOTS = 2;
+    var keypad_robot = try KeypadRobot.init(allocator);
+    defer keypad_robot.deinit();
+
+    var directional_robot = try DirectionalRobot.init(allocator);
+    defer directional_robot.deinit();
+    var total: u128 = 0;
+    for (0..keypad_input.items.len) |i| {
+        try keypad_robot.run(keypad_input.items[i]);
+        // for all viable paths
+        total += try directional_robot.run(keypad_robot.path, try calc_keypad_cost(keypad_input.items[i]), 24);
+    }
+
+    for (0..keypad_input.items.len) |i| {
+        keypad_input.items[i].deinit();
+    }
+    return total;
 }
 
 test "day21" {
@@ -1009,8 +1901,8 @@ test "day21" {
     const allocator = gpa.allocator();
     scratch_str = std.ArrayList(u8).init(allocator);
     var timer = try std.time.Timer.start();
-    std.debug.print("Cheats possible {d} in {d}ms\n", .{ try part1("../inputs/day21/test.txt", allocator), timer.lap() / std.time.ns_per_ms });
-    std.debug.print("Cheats possible {d} in {d}ms\n", .{ try part2("../inputs/day21/test.txt", allocator), timer.lap() / std.time.ns_per_ms });
+    std.debug.print("Sum of complexities {d} in {d}ms\n", .{ try part1("../inputs/day21/input.txt", allocator), timer.lap() / std.time.ns_per_ms });
+    std.debug.print("Sum of complexities {d} in {d}ms\n", .{ try part2("../inputs/day21/test.txt", allocator), timer.lap() / std.time.ns_per_ms });
     scratch_str.deinit();
     if (gpa.deinit() == .leak) {
         std.debug.print("Leaked!\n", .{});
