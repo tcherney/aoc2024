@@ -110,7 +110,7 @@ var scratch_str: std.ArrayList(u8) = undefined;
 const DEBUG = false;
 
 pub const Graph = struct {
-    nodes: std.AutoHashMap(ID, *Node),
+    nodes: std.ArrayList(*Node),
     allocator: std.mem.Allocator,
     const INF = std.math.maxInt(u64);
     pub const Edge = struct {
@@ -120,10 +120,10 @@ pub const Graph = struct {
         label: u8 = ' ',
     };
     pub const Node = struct {
-        id: ID,
+        id: u64,
         edges: *std.ArrayList(Edge),
         cost: u64 = undefined,
-        pub fn init(id: ID, allocator: std.mem.Allocator) !Node {
+        pub fn init(id: u64, allocator: std.mem.Allocator) !Node {
             const edges = try allocator.create(std.ArrayList(Edge));
             edges.* = std.ArrayList(Edge).init(allocator);
             return .{
@@ -138,9 +138,9 @@ pub const Graph = struct {
                 .cost = cost,
             });
         }
-        pub fn connected(self: *Node, other: *Node) bool {
+        pub fn connected(self: *const Node, other: *const Node) bool {
             for (0..self.edges.items.len) |i| {
-                if (self.edges.items[i].v.id.id == other.id.id) {
+                if (self.edges.items[i].v.id == other.id) {
                     return true;
                 }
             }
@@ -172,16 +172,15 @@ pub const Graph = struct {
     };
     pub fn init(allocator: std.mem.Allocator) Graph {
         return Graph{
-            .nodes = std.AutoHashMap(ID, *Node).init(allocator),
+            .nodes = std.ArrayList(*Node).init(allocator),
             .allocator = allocator,
         };
     }
 
     pub fn deinit(self: *Graph) void {
-        var it = self.nodes.iterator();
-        while (it.next()) |entry| {
-            entry.value_ptr.*.deinit(self.allocator);
-            self.allocator.destroy(entry.value_ptr.*);
+        for (0..self.nodes.items.len) |i| {
+            self.nodes.items[i].deinit(self.allocator);
+            self.allocator.destroy(self.nodes.items[i]);
         }
         self.nodes.deinit();
     }
@@ -265,16 +264,11 @@ pub const Graph = struct {
     }
 };
 
-pub const ID = struct {
-    id: u64,
-    has_t: bool,
-};
-
 pub const ThreeSet = struct {
-    c1: ID,
-    c2: ID,
-    c3: ID,
-    pub fn init(c1: ID, c2: ID, c3: ID) !ThreeSet {
+    c1: u64,
+    c2: u64,
+    c3: u64,
+    pub fn init(c1: u64, c2: u64, c3: u64) !ThreeSet {
         return ThreeSet{
             .c1 = c1,
             .c2 = c2,
@@ -282,15 +276,24 @@ pub const ThreeSet = struct {
         };
     }
     pub fn eql(self: *ThreeSet, other: ThreeSet) bool {
-        const contains_c1 = self.c1.id == other.c1.id or self.c1.id == other.c2.id or self.c1.id == other.c3.id;
-        const contains_c2 = self.c2.id == other.c1.id or self.c2.id == other.c2.id or self.c2.id == other.c3.id;
-        const contains_c3 = self.c3.id == other.c1.id or self.c3.id == other.c2.id or self.c3.id == other.c3.id;
+        const contains_c1 = self.c1 == other.c1 or self.c1 == other.c2 or self.c1 == other.c3;
+        const contains_c2 = self.c2 == other.c1 or self.c2 == other.c2 or self.c2 == other.c3;
+        const contains_c3 = self.c3 == other.c1 or self.c3 == other.c2 or self.c3 == other.c3;
         return contains_c1 and contains_c2 and contains_c3;
     }
-    pub fn has_t(self: *ThreeSet) bool {
-        return self.c1.has_t or self.c2.has_t or self.c3.has_t;
+    pub fn has_t(self: *ThreeSet, keys: std.ArrayList(std.ArrayList(u8))) bool {
+        return keys.items[self.c1].items[0] == 't' or keys.items[self.c2].items[0] == 't' or keys.items[self.c3].items[0] == 't';
     }
 };
+
+pub fn add_key(keys: *std.ArrayList(std.ArrayList(u8)), key: []const u8, allocator: std.mem.Allocator) !u64 {
+    for (0..keys.items.len) |i| {
+        if (keys.items[i].items[0] == key[0] and keys.items[i].items[1] == key[1]) return i;
+    }
+    try keys.append((std.ArrayList(u8).init(allocator)));
+    _ = try keys.items[keys.items.len - 1].writer().write(key);
+    return keys.items.len - 1;
+}
 
 pub fn add_set(three_sets: *std.ArrayList(ThreeSet), new_set: ThreeSet) !void {
     var exists = false;
@@ -308,11 +311,10 @@ pub fn part1(file_name: []const u8, allocator: std.mem.Allocator) !u64 {
     var buf: [65536]u8 = undefined;
     var graph = Graph.init(allocator);
     defer graph.deinit();
-    var key_map = std.StringHashMap(ID).init(allocator);
-    defer key_map.deinit();
+
     var keys = std.ArrayList(std.ArrayList(u8)).init(allocator);
     defer keys.deinit();
-    var curr_id: u64 = 0;
+
     while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |unfiltered| {
         var line = unfiltered;
         if (std.mem.indexOfScalar(u8, unfiltered, '\r')) |indx| {
@@ -320,79 +322,48 @@ pub fn part1(file_name: []const u8, allocator: std.mem.Allocator) !u64 {
         }
         if (line.len == 0) continue;
         var it = std.mem.splitScalar(u8, line, '-');
-        const name1_str = it.next().?;
-        const name2_str = it.next().?;
-        var name1: *std.ArrayList(u8) = undefined;
-        var name2: *std.ArrayList(u8) = undefined;
-        var id1: ID = undefined;
-        var id2: ID = undefined;
-        if (key_map.contains(name1_str)) {
-            id1 = key_map.get(name1_str).?;
-        } else {
-            try keys.append((std.ArrayList(u8).init(allocator)));
-            name1 = &keys.items[keys.items.len - 1];
-            _ = try name1.writer().write(name1_str);
-            var has_t = false;
-            if (std.mem.indexOfScalar(u8, name1.items, 't')) |indx| {
-                has_t = indx == 0;
-            }
-            id1 = .{
-                .id = curr_id,
-                .has_t = has_t,
-            };
-            try key_map.put(name1.items, id1);
-            curr_id += 1;
-        }
-        if (key_map.contains(name2_str)) {
-            id2 = key_map.get(name2_str).?;
-        } else {
-            try keys.append((std.ArrayList(u8).init(allocator)));
-            name2 = &keys.items[keys.items.len - 1];
-            _ = try name2.writer().write(name2_str);
-            var has_t = false;
-            if (std.mem.indexOfScalar(u8, name2.items, 't')) |indx| {
-                has_t = indx == 0;
-            }
-            id2 = .{
-                .id = curr_id,
-                .has_t = has_t,
-            };
-            try key_map.put(name2.items, id2);
-            curr_id += 1;
-        }
-        //std.debug.print("node1 {s}, node2 {s}\n", .{ name1, name2 });
+        const id1: u64 = try add_key(&keys, it.next().?, allocator);
+        const id2: u64 = try add_key(&keys, it.next().?, allocator);
+
+        //std.debug.print("node1 {s}({d}), node2 {s}({d})\n", .{ keys.items[id1].items, id1, keys.items[id2].items, id2 });
         var node1: *Graph.Node = undefined;
         var node2: *Graph.Node = undefined;
-        if (!graph.nodes.contains(id1)) {
-            node1 = try allocator.create(Graph.Node);
-            node1.* = try Graph.Node.init(id1, allocator);
-            try graph.nodes.put(node1.id, node1);
-        } else {
-            node1 = graph.nodes.get(id1).?;
+        if (id1 == graph.nodes.items.len) {
+            try graph.nodes.append(try allocator.create(Graph.Node));
+            graph.nodes.items[graph.nodes.items.len - 1].* = try Graph.Node.init(id1, allocator);
         }
-        if (!graph.nodes.contains(id2)) {
-            node2 = try allocator.create(Graph.Node);
-            node2.* = try Graph.Node.init(id2, allocator);
-            try graph.nodes.put(node2.id, node2);
-        } else {
-            node2 = graph.nodes.get(id2).?;
+        if (id2 == graph.nodes.items.len) {
+            try graph.nodes.append(try allocator.create(Graph.Node));
+            graph.nodes.items[graph.nodes.items.len - 1].* = try Graph.Node.init(id2, allocator);
         }
+        node1 = graph.nodes.items[id1];
+        node2 = graph.nodes.items[id2];
 
+        //std.debug.print("Adding {any} to {any}\n", .{ node1.*, node2.* });
         try node1.add_edge(node2, 1);
         try node2.add_edge(node1, 1);
     }
+    // for (0..graph.nodes.items.len) |i| {
+    //     std.debug.print("Node: {s} Edge cnt {d}\n", .{ keys.items[i].items, graph.nodes.items[i].edges.items.len });
+    //     for (0..graph.nodes.items[i].edges.items.len) |j| {
+    //         std.debug.print("{s}({d}) ", .{ keys.items[graph.nodes.items[i].edges.items[j].v.id].items, graph.nodes.items[i].edges.items[j].v.id });
+    //     }
+    //     std.debug.print("\n", .{});
+    // }
     var three_sets = std.ArrayList(ThreeSet).init(allocator);
     defer three_sets.deinit();
-    var it = graph.nodes.iterator();
-    while (it.next()) |entry| {
-        const node = entry.value_ptr.*;
-        for (0..node.edges.items.len) |i| {
-            for (i + 1..node.edges.items.len) |j| {
-                if (node.edges.items[i].v.connected(node.edges.items[j].v)) {
+
+    for (0..graph.nodes.items.len) |i| {
+        const node = graph.nodes.items[i];
+        //std.debug.print("Node {s} edge cnt {d}\n", .{ keys.items[i].items, node.edges.items.len });
+        for (0..node.edges.items.len) |j| {
+            for (j + 1..node.edges.items.len) |k| {
+                //std.debug.print("Testing connection {s} to {s}\n", .{ keys.items[node.edges.items[j].v.id].items, keys.items[node.edges.items[k].v.id].items });
+                if (node.edges.items[j].v.connected(node.edges.items[k].v)) {
                     const new_set = try ThreeSet.init(
                         node.id,
-                        node.edges.items[i].v.id,
                         node.edges.items[j].v.id,
+                        node.edges.items[k].v.id,
                     );
                     try add_set(&three_sets, new_set);
                 }
@@ -401,8 +372,8 @@ pub fn part1(file_name: []const u8, allocator: std.mem.Allocator) !u64 {
     }
     var count_t: u64 = 0;
     for (0..three_sets.items.len) |i| {
-        if (three_sets.items[i].has_t()) {
-            std.debug.print("{s}-{s}-{s}\n", .{ keys.items[three_sets.items[i].c1.id].items, keys.items[three_sets.items[i].c2.id].items, keys.items[three_sets.items[i].c3.id].items });
+        if (three_sets.items[i].has_t(keys)) {
+            //std.debug.print("{s}-{s}-{s}\n", .{ keys.items[three_sets.items[i].c1].items, keys.items[three_sets.items[i].c2].items, keys.items[three_sets.items[i].c3].items });
             count_t += 1;
         }
     }
@@ -429,17 +400,49 @@ pub fn part1(file_name: []const u8, allocator: std.mem.Allocator) !u64 {
 
 // What is the password to get into the LAN party?
 
-pub fn part2(file_name: []const u8, allocator: std.mem.Allocator) !i64 {
+pub fn best_set(have_seen: *std.ArrayList(std.AutoHashMap(u64, bool)), clique_size: u64, graph: Graph, start_id: u64, curr_id: u64, curr_seen: usize) !usize {
+    if (curr_id >= graph.nodes.items.len) return curr_seen;
+    if (curr_id == start_id) {
+        return try best_set(have_seen, clique_size, graph, start_id, curr_id + 1, curr_seen);
+    }
+    const node = graph.nodes.items[curr_id];
+
+    if (node.edges.items.len < clique_size - 1) {
+        return try best_set(have_seen, clique_size, graph, start_id, curr_id + 1, curr_seen);
+    }
+    var connected = true;
+    var key_it = have_seen.items[curr_seen].keyIterator();
+    while (key_it.next()) |node_id| {
+        if (!node.connected(graph.nodes.items[node_id.*])) {
+            //std.debug.print("{s} not connected to {s}\n", .{ keys.items[node2.id].items, keys.items[node_id.*].items });
+            connected = false;
+            break;
+        }
+    }
+    if (connected) {
+        try have_seen.append(try have_seen.items[curr_seen].clone());
+        try have_seen.items[curr_seen].put(curr_id, true);
+        const chosen = try best_set(have_seen, clique_size, graph, start_id, curr_id + 1, curr_seen);
+        const not_chosen = try best_set(have_seen, clique_size, graph, start_id, curr_id + 1, curr_seen + 1);
+        return if (have_seen.items[chosen].count() > have_seen.items[not_chosen].count()) chosen else not_chosen;
+    } else {
+        return try best_set(have_seen, clique_size, graph, start_id, curr_id + 1, curr_seen);
+    }
+}
+
+fn compareStrings(_: void, lhs: []const u8, rhs: []const u8) bool {
+    return std.mem.order(u8, lhs, rhs).compare(std.math.CompareOperator.lt);
+}
+
+pub fn part2(file_name: []const u8, allocator: std.mem.Allocator) ![]u8 {
     const f = try std.fs.cwd().openFile(file_name, .{});
     defer f.close();
     var buf: [65536]u8 = undefined;
     var graph = Graph.init(allocator);
     defer graph.deinit();
-    var key_map = std.StringHashMap(ID).init(allocator);
-    defer key_map.deinit();
     var keys = std.ArrayList(std.ArrayList(u8)).init(allocator);
     defer keys.deinit();
-    var curr_id: u64 = 0;
+
     while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |unfiltered| {
         var line = unfiltered;
         if (std.mem.indexOfScalar(u8, unfiltered, '\r')) |indx| {
@@ -447,124 +450,87 @@ pub fn part2(file_name: []const u8, allocator: std.mem.Allocator) !i64 {
         }
         if (line.len == 0) continue;
         var it = std.mem.splitScalar(u8, line, '-');
-        const name1_str = it.next().?;
-        const name2_str = it.next().?;
-        var name1: *std.ArrayList(u8) = undefined;
-        var name2: *std.ArrayList(u8) = undefined;
-        var id1: ID = undefined;
-        var id2: ID = undefined;
-        if (key_map.contains(name1_str)) {
-            id1 = key_map.get(name1_str).?;
-        } else {
-            try keys.append((std.ArrayList(u8).init(allocator)));
-            name1 = &keys.items[keys.items.len - 1];
-            _ = try name1.writer().write(name1_str);
-            var has_t = false;
-            if (std.mem.indexOfScalar(u8, name1.items, 't')) |indx| {
-                has_t = indx == 0;
-            }
-            id1 = .{
-                .id = curr_id,
-                .has_t = has_t,
-            };
-            try key_map.put(name1.items, id1);
-            curr_id += 1;
-        }
-        if (key_map.contains(name2_str)) {
-            id2 = key_map.get(name2_str).?;
-        } else {
-            try keys.append((std.ArrayList(u8).init(allocator)));
-            name2 = &keys.items[keys.items.len - 1];
-            _ = try name2.writer().write(name2_str);
-            var has_t = false;
-            if (std.mem.indexOfScalar(u8, name2.items, 't')) |indx| {
-                has_t = indx == 0;
-            }
-            id2 = .{
-                .id = curr_id,
-                .has_t = has_t,
-            };
-            try key_map.put(name2.items, id2);
-            curr_id += 1;
-        }
+        const id1: u64 = try add_key(&keys, it.next().?, allocator);
+        const id2: u64 = try add_key(&keys, it.next().?, allocator);
+
         //std.debug.print("node1 {s}, node2 {s}\n", .{ name1, name2 });
         var node1: *Graph.Node = undefined;
         var node2: *Graph.Node = undefined;
-        if (!graph.nodes.contains(id1)) {
-            node1 = try allocator.create(Graph.Node);
-            node1.* = try Graph.Node.init(id1, allocator);
-            try graph.nodes.put(node1.id, node1);
-        } else {
-            node1 = graph.nodes.get(id1).?;
+        if (id1 == graph.nodes.items.len) {
+            try graph.nodes.append(try allocator.create(Graph.Node));
+            graph.nodes.items[graph.nodes.items.len - 1].* = try Graph.Node.init(id1, allocator);
         }
-        if (!graph.nodes.contains(id2)) {
-            node2 = try allocator.create(Graph.Node);
-            node2.* = try Graph.Node.init(id2, allocator);
-            try graph.nodes.put(node2.id, node2);
-        } else {
-            node2 = graph.nodes.get(id2).?;
+        if (id2 == graph.nodes.items.len) {
+            try graph.nodes.append(try allocator.create(Graph.Node));
+            graph.nodes.items[graph.nodes.items.len - 1].* = try Graph.Node.init(id2, allocator);
         }
+        node1 = graph.nodes.items[id1];
+        node2 = graph.nodes.items[id2];
 
         try node1.add_edge(node2, 1);
         try node2.add_edge(node1, 1);
     }
-    var have_seen = std.AutoHashMap(ID, bool).init(allocator);
+    var have_seen = std.ArrayList(std.AutoHashMap(u64, bool)).init(allocator);
     defer have_seen.deinit();
-    var clique_size: u64 = graph.nodes.count();
-    std.debug.print("Num nodes {d}\n", .{clique_size});
+    var clique = std.ArrayList([]const u8).init(allocator);
+    defer clique.deinit();
+    var clique_size: u64 = graph.nodes.items.len;
+    //std.debug.print("Num nodes {d}\n", .{clique_size});
     while (clique_size > 0) {
         var num_with_enough: u64 = 0;
-        var it = graph.nodes.iterator();
-        while (it.next()) |entry| {
-            const node = entry.value_ptr.*;
+        for (0..graph.nodes.items.len) |i| {
+            const node = graph.nodes.items[i];
             if (node.edges.items.len >= clique_size - 1) {
                 num_with_enough += 1;
             }
         }
         if (num_with_enough >= clique_size) {
-            std.debug.print("Could have a clique of size {d}\n", .{clique_size});
-            it = graph.nodes.iterator();
-            while (it.next()) |entry| {
-                const node1 = entry.value_ptr.*;
-                var it2 = graph.nodes.iterator();
+            //std.debug.print("Could have a clique of size {d}\n", .{clique_size});
+            var best_seen: usize = 0;
+            for (0..graph.nodes.items.len) |i| {
+                const node1 = graph.nodes.items[i];
+                if (node1.edges.items.len < clique_size - 1) continue;
+                for (0..have_seen.items.len) |j| {
+                    have_seen.items[j].deinit();
+                }
                 have_seen.clearRetainingCapacity();
-                try have_seen.put(node1.id, true);
-                std.debug.print("Start node {s}\n", .{keys.items[node1.id.id].items});
-                //TODO recursive through all nodes each time we could add a node create a copy hash set add to list of hash sets and recurse down till we try all nodes can return nothing then compute max hash set after
-                while (it2.next()) |entry2| {
-                    const node2 = entry2.value_ptr.*;
-                    if (node2.id.id == node1.id.id) continue;
-                    var connected = true;
-                    var key_it = have_seen.keyIterator();
-                    while (key_it.next()) |node_id| {
-                        if (!node2.connected(graph.nodes.get(node_id.*).?)) {
-                            std.debug.print("{s} not connected to {s}\n", .{ keys.items[node2.id.id].items, keys.items[node_id.id].items });
-                            connected = false;
-                            break;
-                        }
-                    }
-                    if (connected) {
-                        try have_seen.put(node2.id, true);
-                        std.debug.print("added {s} to set\n", .{keys.items[node2.id.id].items});
-                    }
-                }
+                try have_seen.append(std.AutoHashMap(u64, bool).init(allocator));
+                best_seen = 0;
+                try have_seen.items[best_seen].put(node1.id, true);
+                //std.debug.print("Start node {s}\n", .{keys.items[node1.id].items});
+                const new_best = try best_set(&have_seen, clique_size, graph, node1.id, 0, best_seen);
+                best_seen = if (have_seen.items[best_seen].count() > have_seen.items[new_best].count()) best_seen else new_best;
+                if (have_seen.items[best_seen].count() >= clique_size) break;
             }
-            if (have_seen.count() >= clique_size) {
-                var key_it = have_seen.keyIterator();
+            if (have_seen.items[best_seen].count() >= clique_size) {
+                var key_it = have_seen.items[best_seen].keyIterator();
                 while (key_it.next()) |node_id| {
-                    std.debug.print("{s} ", .{keys.items[node_id.id].items});
+                    //std.debug.print("{s} ", .{keys.items[node_id.*].items});
+                    try clique.append(keys.items[node_id.*].items);
                 }
-                std.debug.print("\n", .{});
+                //std.debug.print("\n", .{});
                 break;
             }
         }
         clique_size -= 1;
     }
 
+    std.mem.sort([]const u8, clique.items, {}, compareStrings);
+    var pass_word = std.ArrayList(u8).init(allocator);
+    defer pass_word.deinit();
+    _ = try pass_word.writer().write(clique.items[0]);
+    for (1..clique.items.len) |i| {
+        _ = try pass_word.writer().print(",{s}", .{clique.items[i]});
+    }
+
+    for (0..have_seen.items.len) |i| {
+        have_seen.items[i].deinit();
+    }
     for (0..keys.items.len) |i| {
         keys.items[i].deinit();
     }
-    return 0;
+
+    return try std.fmt.bufPrint(&num_buf, "{s}", .{pass_word.items});
 }
 
 test "day23" {
@@ -572,8 +538,8 @@ test "day23" {
     const allocator = gpa.allocator();
     scratch_str = std.ArrayList(u8).init(allocator);
     var timer = try std.time.Timer.start();
-    std.debug.print("Interconnected sets with computer starting with t {d} in {d}ms\n", .{ try part1("../inputs/day23/test.txt", allocator), timer.lap() / std.time.ns_per_ms });
-    std.debug.print("Interconnected sets with computer starting with t {d} in {d}ms\n", .{ try part2("../inputs/day23/test.txt", allocator), timer.lap() / std.time.ns_per_ms });
+    std.debug.print("Interconnected sets with computer starting with t {d} in {d}ms\n", .{ try part1("../inputs/day23/input.txt", allocator), timer.lap() / std.time.ns_per_ms });
+    std.debug.print("Password to lan party {s} in {d}ms\n", .{ try part2("../inputs/day23/input.txt", allocator), timer.lap() / std.time.ns_per_ms });
     scratch_str.deinit();
     if (gpa.deinit() == .leak) {
         std.debug.print("Leaked!\n", .{});
