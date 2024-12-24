@@ -327,7 +327,17 @@ pub const LogicSystem = struct {
         return self.keys.items[indx].items;
     }
 
-    pub fn build_adder(self: *LogicSystem) void {
+    pub fn swap_op(self: *LogicSystem, res_indx1: usize, res_indx2: usize) void {
+        for (0..self.operations.items.len) |i| {
+            if (self.operations.items[i].res_indx == res_indx1) {
+                self.operations.items[i].res_indx = res_indx2;
+            } else if (self.operations.items[i].res_indx == res_indx2) {
+                self.operations.items[i].res_indx = res_indx1;
+            }
+        }
+    }
+
+    pub fn build_adder(self: *LogicSystem, errors: *std.ArrayList([]const u8)) !void {
         var x_in: usize = self.x.items[0];
         var y_in: usize = self.y.items[0];
         var cout: usize = self.find_op(x_in, y_in, .AND) orelse {
@@ -342,32 +352,101 @@ pub const LogicSystem = struct {
         for (1..self.x.items.len) |i| {
             x_in = self.x.items[i];
             y_in = self.y.items[i];
-            const cin = cout;
-            std.debug.print("cin({d}): {s}, ", .{ i, self.to_str(cin) });
-            const sum_i = self.find_op(x_in, y_in, .XOR) orelse {
+            var cin = cout;
+
+            var sum_i: usize = undefined;
+            if (self.find_op(x_in, y_in, .XOR)) |res| {
+                sum_i = res;
+            } else {
                 self.report_problem(x_in, y_in, .XOR);
-                return;
-            };
-            std.debug.print("sum_i({d}): {s}, ", .{ i, self.to_str(sum_i) });
-            const cout_i: usize = self.find_op(x_in, y_in, .AND) orelse {
+            }
+
+            var cout_i: usize = undefined;
+            if (self.find_op(x_in, y_in, .AND)) |res| {
+                cout_i = res;
+            } else {
                 self.report_problem(x_in, y_in, .AND);
-                return;
-            };
-            std.debug.print("cout_i({d}): {s}, ", .{ i, self.to_str(cout_i) });
-            const carry_i: usize = self.find_op(cin, sum_i, .AND) orelse {
-                self.report_problem(cin, sum_i, .AND);
-                return;
-            };
-            std.debug.print("carry_i({d}): {s}, ", .{ i, self.to_str(carry_i) });
-            sum = self.find_op(cin, sum_i, .XOR) orelse {
+            }
+
+            var carry_i: usize = undefined;
+            if (self.find_op(cin, sum_i, .AND)) |res| {
+                carry_i = res;
+            } else {
+                self.swap_op(cout_i, sum_i);
+                std.debug.print("swapped {s},{s}\n", .{ self.keys.items[cout_i].items, self.keys.items[sum_i].items });
+                try errors.append(self.keys.items[cout_i].items);
+                try errors.append(self.keys.items[sum_i].items);
+                const tmp = cout_i;
+                cout_i = sum_i;
+                sum_i = tmp;
+                if (self.find_op(cin, sum_i, .AND)) |res| {
+                    carry_i = res;
+                } else {
+                    self.report_problem(cin, sum_i, .AND);
+                }
+            }
+
+            if (self.find_op(cin, sum_i, .XOR)) |res| {
+                sum = res;
+            } else {
                 self.report_problem(cin, sum_i, .XOR);
-                return;
-            };
-            std.debug.print("sum({d}): {s}, ", .{ i, self.to_str(sum) });
-            cout = self.find_op(cout_i, carry_i, .OR) orelse {
+            }
+            if (sum != self.z.items[i]) {
+                if (cin == self.z.items[i]) {
+                    self.swap_op(cin, sum);
+                    std.debug.print("swapped {s},{s}\n", .{ self.keys.items[cin].items, self.keys.items[sum].items });
+                    try errors.append(self.keys.items[cin].items);
+                    try errors.append(self.keys.items[sum].items);
+                    const tmp = sum;
+                    sum = cin;
+                    cin = tmp;
+                } else if (sum_i == self.z.items[i]) {
+                    self.swap_op(sum_i, sum);
+                    std.debug.print("swapped {s},{s}\n", .{ self.keys.items[sum_i].items, self.keys.items[sum].items });
+                    try errors.append(self.keys.items[sum_i].items);
+                    try errors.append(self.keys.items[sum].items);
+                    const tmp = sum;
+                    sum = sum_i;
+                    sum_i = tmp;
+                } else if (cout_i == self.z.items[i]) {
+                    self.swap_op(cout_i, sum);
+                    std.debug.print("swapped {s},{s}\n", .{ self.keys.items[cout_i].items, self.keys.items[sum].items });
+                    try errors.append(self.keys.items[cout_i].items);
+                    try errors.append(self.keys.items[sum].items);
+                    const tmp = sum;
+                    sum = cout_i;
+                    cout_i = tmp;
+                } else if (carry_i == self.z.items[i]) {
+                    self.swap_op(carry_i, sum);
+                    std.debug.print("swapped {s},{s}\n", .{ self.keys.items[carry_i].items, self.keys.items[sum].items });
+                    try errors.append(self.keys.items[carry_i].items);
+                    try errors.append(self.keys.items[sum].items);
+                    const tmp = sum;
+                    sum = carry_i;
+                    carry_i = tmp;
+                }
+            }
+
+            if (self.find_op(cout_i, carry_i, .OR)) |res| {
+                cout = res;
+            } else {
                 self.report_problem(cout_i, carry_i, .OR);
-                return;
-            };
+            }
+
+            if (cout == self.z.items[i] and i != self.x.items.len - 1) {
+                self.swap_op(cout, sum);
+                std.debug.print("swapped {s},{s}\n", .{ self.keys.items[cout].items, self.keys.items[sum].items });
+                try errors.append(self.keys.items[cout].items);
+                try errors.append(self.keys.items[sum].items);
+                const tmp = sum;
+                sum = cout;
+                cout = tmp;
+            }
+            std.debug.print("cin({d}): {s}, ", .{ i, self.to_str(cin) });
+            std.debug.print("sum_i({d}): {s}, ", .{ i, self.to_str(sum_i) });
+            std.debug.print("cout_i({d}): {s}, ", .{ i, self.to_str(cout_i) });
+            std.debug.print("carry_i({d}): {s}, ", .{ i, self.to_str(carry_i) });
+            std.debug.print("sum({d}): {s}, ", .{ i, self.to_str(sum) });
             std.debug.print("cout({d}): {s}\n", .{ i, self.to_str(cout) });
         }
     }
@@ -380,36 +459,6 @@ pub const LogicSystem = struct {
             }
         }
         return null;
-    }
-
-    pub fn find_errors(self: *LogicSystem, errors: *std.ArrayList(std.ArrayList(u8))) !void {
-        _ = errors;
-        for (0..self.operations.items.len) |i| {
-            const op = self.operations.items[i];
-            const data1 = self.keys.items[op.data_indx1].items;
-            const data2 = self.keys.items[op.data_indx2].items;
-            const res = self.keys.items[op.res_indx].items;
-            const op_str = switch (op.op_type) {
-                .AND => "AND",
-                .XOR => "XOR",
-                .OR => "OR",
-            };
-            if (op.op_type == .XOR) {
-                if (data1[0] == 'x' and data2[0] == 'y' or data1[0] == 'y' and data2[0] == 'x') {
-                    if (res[0] == 'z') {
-                        std.debug.print("Problem: {s} {s} {s} -> {s}\n", .{ data1, op_str, data2, res });
-                    }
-                } else {
-                    if (res[0] != 'z') {
-                        std.debug.print("Problem: {s} {s} {s} -> {s}\n", .{ data1, op_str, data2, res });
-                    }
-                }
-            } else {
-                if (res[0] == 'z') {
-                    std.debug.print("Problem: {s} {s} {s} -> {s}\n", .{ data1, op_str, data2, res });
-                }
-            }
-        }
     }
 };
 
@@ -569,19 +618,24 @@ pub fn part2(file_name: []const u8, allocator: std.mem.Allocator) !u64 {
         const res = it.next().?;
         try logic_system.add_operation(data1, op, data2, res);
     }
-    var errors = std.ArrayList(std.ArrayList(u8)).init(allocator);
+    var errors = std.ArrayList([]const u8).init(allocator);
     defer errors.deinit();
-    logic_system.build_adder();
+    try logic_system.build_adder(&errors);
     //try logic_system.find_errors(&errors);
-    for (0..logic_system.operations.items.len) |_| {
+    for (0..logic_system.operations.items.len + 5) |_| {
         for (0..logic_system.operations.items.len) |i| {
             logic_system.operations.items[i].execute(logic_system.data);
         }
     }
     //logic_system.print_data();
     logic_system.answer_addition();
-    for (0..errors.items.len) |i| {
-        errors.items[i].deinit();
+    if (errors.items.len > 0) {
+        std.mem.sort([]const u8, errors.items, {}, comptime compareStrings);
+        std.debug.print("{s}", .{errors.items[0]});
+        for (1..errors.items.len) |i| {
+            std.debug.print(",{s}", .{errors.items[i]});
+        }
+        std.debug.print("\n", .{});
     }
     return logic_system.compute_z();
 }
@@ -591,8 +645,8 @@ test "day24" {
     const allocator = gpa.allocator();
     scratch_str = std.ArrayList(u8).init(allocator);
     var timer = try std.time.Timer.start();
-    std.debug.print("{d} in {d}ms\n", .{ try part1("../inputs/day24/test.txt", allocator), timer.lap() / std.time.ns_per_ms });
-    std.debug.print("{d} in {d}ms\n", .{ try part2("../inputs/day24/copy.txt", allocator), timer.lap() / std.time.ns_per_ms });
+    std.debug.print("{d} in {d}ms\n", .{ try part1("../inputs/day24/input.txt", allocator), timer.lap() / std.time.ns_per_ms });
+    std.debug.print("{d} in {d}ms\n", .{ try part2("../inputs/day24/input.txt", allocator), timer.lap() / std.time.ns_per_ms });
     scratch_str.deinit();
     if (gpa.deinit() == .leak) {
         std.debug.print("Leaked!\n", .{});
