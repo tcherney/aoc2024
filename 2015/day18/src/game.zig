@@ -11,14 +11,14 @@ pub const TUI = engine.TUI(Game.State);
 const TERMINAL_HEIGHT_OFFSET = 70;
 const TERMINAL_WIDTH_OFFSET = 30;
 
-const GAME_STEPS = 100;
+const GAME_STEPS = 1000;
 
 pub const Game = struct {
     running: bool = true,
     e: Engine = undefined,
     allocator: std.mem.Allocator = undefined,
-    frame_limit: u64 = 16_666_667,
-    //frame_limit: u64 = std.time.ns_per_s * 2,
+    //frame_limit: u64 = 16_666_667,
+    frame_limit: u64 = std.time.ns_per_s * 2,
     lock: std.Thread.Mutex = undefined,
     window: engine.Texture,
     world: std.ArrayList(std.ArrayList(u8)) = undefined,
@@ -267,9 +267,11 @@ pub const Game = struct {
             delta = timer.read();
             timer.reset();
             self.lock.lock();
-            if (self.world_steps < GAME_STEPS) {
-                try self.update(true);
-                self.world_steps += 1;
+            if (self.state == .game) {
+                if (self.world_steps < GAME_STEPS) {
+                    try self.update(true);
+                    self.world_steps += 1;
+                }
             }
             self.lock.unlock();
             delta = timer.read();

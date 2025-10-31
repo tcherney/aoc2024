@@ -20,7 +20,7 @@ pub fn build_target(b: *std.Build, target: std.Build.ResolvedTarget, optimize: s
         wasm_mod.addImport("term", termlib.module("term"));
         wasm_mod.addImport("common", commonlib.module("common"));
         wasm_mod.addImport("engine", zigxel_lib.module("engine"));
-        _ = try emcc.Build(b, null, wasm_mod, target, optimize, b.path("src/main.zig"), null, "src/shell.html", null);
+        _ = try emcc.Build(b, null, wasm_mod, target, optimize, b.path("src/main.zig"), null, "src/shell.html", &[_][]const u8{"input.txt"});
     } else {
 
         // We will also create a module for our other entry point, 'main.zig'.
