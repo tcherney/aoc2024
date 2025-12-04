@@ -33,20 +33,146 @@
 
 // What do you get if you add up all of the invalid IDs?
 
+pub const Range = struct {
+    start: usize,
+    end: usize,
+};
+
 const std = @import("std");
-pub fn day1(self: anytype) !void {
+var seq_scratch: [1024]u8 = undefined;
+var cur_seq_scratch: [1024]u8 = undefined;
+var cpy_scratch: [1024]u8 = undefined;
+pub fn day2_p2(self: anytype) !void {
     const f = try std.fs.cwd().openFile("inputs/day2/input.txt", .{});
     defer f.close();
     var buf: [65536]u8 = undefined;
-    var cmds = std.ArrayList(i32).init(self.allocator);
-    defer cmds.deinit();
-    while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |unfiltered| {
-        var line = unfiltered;
-        if (std.mem.indexOfScalar(u8, unfiltered, '\r')) |indx| {
-            line = unfiltered[0..indx];
-        }
-        const modifier: i32 = if (line[0] == 'L') -1 else 1;
-        line = line[1..];
-        try cmds.append(try std.fmt.parseInt(i32, line, 10) * modifier);
+    var ranges = std.ArrayList(Range).init(self.allocator);
+    defer ranges.deinit();
+    while (try f.reader().readUntilDelimiterOrEof(&buf, ',')) |line| {
+        //std.debug.print("{any}\n", .{std.mem.indexOf(u8, line, "-")});
+        if (std.mem.indexOf(u8, line, "-") == null) continue;
+        std.debug.print("{s}\n", .{line});
+        var it = std.mem.splitScalar(u8, line, '-');
+        try ranges.append(.{ .start = try std.fmt.parseInt(usize, it.next().?, 10), .end = try std.fmt.parseInt(usize, it.next().?, 10) });
     }
+    std.debug.print("Ranges\n", .{});
+    var num_invalid: usize = 0;
+    var invalid_sum: usize = 0;
+    for (ranges.items) |r| {
+        var min_digits: usize = 1;
+        var max_digits: usize = 1;
+        var cur_min = r.start;
+        var cur_max = r.end;
+        while (@divFloor(cur_min, 10) > 0) {
+            cur_min = @divFloor(cur_min, 10);
+            min_digits += 1;
+        }
+        while (@divFloor(cur_max, 10) > 0) {
+            cur_max = @divFloor(cur_max, 10);
+            max_digits += 1;
+        }
+        const repeated_len = @divFloor(max_digits, 2);
+        const max_seq = std.math.pow(usize, 10, repeated_len + 1);
+        const adjust = std.math.pow(usize, 10, repeated_len);
+        var num_map: std.AutoHashMap(usize, bool) = std.AutoHashMap(usize, bool).init(self.allocator);
+        defer num_map.deinit();
+        std.debug.print("Init {any}--{any}--{any}\n", .{ repeated_len, max_seq, adjust });
+        std.debug.print("{any}-{any}", .{ r.start, r.end });
+        for (0..max_seq) |i| {
+            const val = i + (i * adjust);
+            if (val >= r.start and val <= r.end) {
+                if (!num_map.contains(val)) {
+                    var num_digits: usize = 1;
+                    var cur_val = val;
+                    while (@divFloor(cur_val, 10) > 0) {
+                        cur_val = @divFloor(cur_val, 10);
+                        num_digits += 1;
+                    }
+                    if (num_digits % 2 == 0) {
+                        try num_map.put(val, true);
+                        num_invalid += 1;
+                        invalid_sum += val;
+                        std.debug.print(" {d}({d})", .{ val, i });
+                        continue;
+                    }
+                }
+            }
+            const string_seq = try std.fmt.bufPrint(&seq_scratch, "{d}", .{i});
+            var j = string_seq.len;
+            var cur_seq = try std.fmt.bufPrint(&cur_seq_scratch, "{d}", .{i});
+            while (j <= max_digits) {
+                const cur_cpy = try self.allocator.dupe(u8, cur_seq);
+                cur_seq = try std.fmt.bufPrint(&cur_seq_scratch, "{s}{s}", .{ cur_cpy, string_seq });
+                self.allocator.free(cur_cpy);
+                const num_val = try std.fmt.parseInt(usize, cur_seq, 10);
+                if (num_val >= r.start and num_val <= r.end) {
+                    if (!num_map.contains(num_val)) {
+                        try num_map.put(num_val, true);
+                        num_invalid += 1;
+                        invalid_sum += num_val;
+                        std.debug.print(" {d}({d})", .{ num_val, i });
+                        break;
+                    }
+                }
+                j += string_seq.len;
+            }
+        }
+        std.debug.print("\n", .{});
+    }
+    std.debug.print("Part 2: Number of invalid ids {d}, total {d}\n", .{ num_invalid, invalid_sum });
+}
+
+pub fn day2_p1(self: anytype) !void {
+    const f = try std.fs.cwd().openFile("inputs/day2/input.txt", .{});
+    defer f.close();
+    var buf: [65536]u8 = undefined;
+    var ranges = std.ArrayList(Range).init(self.allocator);
+    defer ranges.deinit();
+    while (try f.reader().readUntilDelimiterOrEof(&buf, ',')) |line| {
+        //std.debug.print("{any}\n", .{std.mem.indexOf(u8, line, "-")});
+        if (std.mem.indexOf(u8, line, "-") == null) continue;
+        std.debug.print("{s}\n", .{line});
+        var it = std.mem.splitScalar(u8, line, '-');
+        try ranges.append(.{ .start = try std.fmt.parseInt(usize, it.next().?, 10), .end = try std.fmt.parseInt(usize, it.next().?, 10) });
+    }
+    std.debug.print("Ranges\n", .{});
+    var num_invalid: usize = 0;
+    var invalid_sum: usize = 0;
+    for (ranges.items) |r| {
+        var min_digits: usize = 1;
+        var max_digits: usize = 1;
+        var cur_min = r.start;
+        var cur_max = r.end;
+        while (@divFloor(cur_min, 10) > 0) {
+            cur_min = @divFloor(cur_min, 10);
+            min_digits += 1;
+        }
+        while (@divFloor(cur_max, 10) > 0) {
+            cur_max = @divFloor(cur_max, 10);
+            max_digits += 1;
+        }
+        const repeated_len = @divFloor(max_digits, 2);
+        const max_seq = std.math.pow(usize, 10, repeated_len + 1);
+        const adjust = std.math.pow(usize, 10, repeated_len);
+        std.debug.print("Init {any}--{any}--{any}\n", .{ repeated_len, max_seq, adjust });
+        std.debug.print("{any}-{any}", .{ r.start, r.end });
+        for (0..max_seq) |i| {
+            const val = i + (i * adjust);
+            if (val >= r.start and val <= r.end) {
+                var num_digits: usize = 1;
+                var cur_val = val;
+                while (@divFloor(cur_val, 10) > 0) {
+                    cur_val = @divFloor(cur_val, 10);
+                    num_digits += 1;
+                }
+                if (num_digits % 2 == 0) {
+                    num_invalid += 1;
+                    invalid_sum += val;
+                    std.debug.print(" {d}({d})", .{ val, i });
+                }
+            }
+        }
+        std.debug.print("\n", .{});
+    }
+    std.debug.print("Part 1: Number of invalid ids {d}, total {d}\n", .{ num_invalid, invalid_sum });
 }

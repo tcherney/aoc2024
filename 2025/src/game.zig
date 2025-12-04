@@ -4,6 +4,7 @@ const engine = @import("engine");
 const common = @import("common");
 const emcc = @import("emcc.zig");
 const day1 = @import("day1.zig");
+const day2 = @import("day2.zig");
 
 pub const Engine = engine.Engine;
 const GAME_LOG = std.log.scoped(.game);
@@ -132,7 +133,9 @@ pub const Game = struct {
     pub fn update(_: *Self) !void {}
 
     pub fn run(self: *Self) !void {
-        try day1.day1(self);
+        //try day1.day1(self);
+        try day2.day2_p1(self);
+        try day2.day2_p2(self);
 
         // self.lock = std.Thread.Mutex{};
         // engine.set_wasm_terminal_size(35, 150);
