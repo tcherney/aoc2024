@@ -26,45 +26,115 @@
 // There are many batteries in front of you. Find the maximum joltage possible from each bank; what is the total output joltage?
 
 const std = @import("std");
-pub fn day3(self: anytype) !void {
-    const f = try std.fs.cwd().openFile("inputs/day1/input.txt", .{});
+
+pub fn update_and_clear(arr: []usize, i: usize, val: usize) void {
+    arr[i] = val;
+    for (i + 1..arr.len) |j| {
+        arr[j] = 0;
+    }
+    //std.debug.print("{any}\n", .{arr});
+}
+
+pub fn calc_largest(arr: []usize) usize {
+    var total: usize = 0;
+    for (0..12) |i| {
+        total += std.math.pow(usize, 10, i) * arr[11 - i];
+    }
+    return total;
+}
+
+pub fn day3_p2(self: anytype) !void {
+    const f = try std.fs.cwd().openFile("inputs/day3/input.txt", .{});
     defer f.close();
     var buf: [65536]u8 = undefined;
-    var cmds = std.ArrayList(i32).init(self.allocator);
-    defer cmds.deinit();
+    var banks = std.ArrayList(std.ArrayList(usize)).init(self.allocator);
+    defer banks.deinit();
     while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |unfiltered| {
         var line = unfiltered;
         if (std.mem.indexOfScalar(u8, unfiltered, '\r')) |indx| {
             line = unfiltered[0..indx];
         }
-        const modifier: i32 = if (line[0] == 'L') -1 else 1;
-        line = line[1..];
-        try cmds.append(try std.fmt.parseInt(i32, line, 10) * modifier);
-    }
-    // std.debug.print("{any}\n", .{cmds.items.len});
-    // for (0..cmds.items.len) |i| {
-    //     std.debug.print("{any}\n", .{cmds.items[i]});
-    // }
-    var current_rot: i32 = 50;
-    var zero_cnt: i32 = 0;
-    var part1: i32 = 0;
-    for (cmds.items) |n| {
-        const start_rot = current_rot;
-        current_rot = @mod(current_rot + n, 100);
-        if (current_rot == 0) {
-            zero_cnt += 1;
-            part1 += 1;
-        } else if (n < 0 and current_rot > start_rot and start_rot != 0) {
-            zero_cnt += 1;
-        } else if (n > 0 and current_rot < start_rot and start_rot != 0) {
-            zero_cnt += 1;
+        try banks.append(std.ArrayList(usize).init(self.allocator));
+        for (line) |c| {
+            try banks.items[banks.items.len - 1].append(c - 48);
         }
-        if (n >= 100) {
-            zero_cnt += @divFloor(n, 100);
-        } else if (n <= -100) {
-            zero_cnt += @divFloor(n, -100);
-        }
-        //std.debug.print("{any} {any} {any} {any}\n", .{ n, start_rot, current_rot, zero_cnt });
     }
-    std.debug.print("Password for part 1 {d}\nPassword for part 2 {d}\n", .{ part1, zero_cnt });
+    std.debug.print("Banks\n", .{});
+    for (0..banks.items.len) |i| {
+        for (0..banks.items[i].items.len) |j| {
+            std.debug.print("{d}", .{banks.items[i].items[j]});
+        }
+        std.debug.print("\n", .{});
+    }
+
+    var total: usize = 0;
+    for (0..banks.items.len) |i| {
+        var highest: [12]usize = [_]usize{0} ** 12;
+        const bank_len = banks.items[i].items.len;
+        for (0..banks.items[i].items.len) |j| {
+            const jolt = banks.items[i].items[j];
+            for (0..12) |k| {
+                //std.debug.print("{d} > {d} and {d} < {d} - (12 - {d} - 1)\n", .{ jolt, highest[k], j, bank_len, k });
+                if (jolt > highest[k] and j < bank_len - (12 - k - 1)) {
+                    update_and_clear(&highest, k, jolt);
+                    break;
+                }
+            }
+        }
+        const largest = calc_largest(&highest);
+        std.debug.print("{d}: {d}\n", .{ i, largest });
+        total += largest;
+    }
+    std.debug.print("Total joltage: {d}\n", .{total});
+
+    for (0..banks.items.len) |i| {
+        banks.items[i].deinit();
+    }
+}
+pub fn day3_p1(self: anytype) !void {
+    const f = try std.fs.cwd().openFile("inputs/day3/input.txt", .{});
+    defer f.close();
+    var buf: [65536]u8 = undefined;
+    var banks = std.ArrayList(std.ArrayList(usize)).init(self.allocator);
+    defer banks.deinit();
+    while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |unfiltered| {
+        var line = unfiltered;
+        if (std.mem.indexOfScalar(u8, unfiltered, '\r')) |indx| {
+            line = unfiltered[0..indx];
+        }
+        try banks.append(std.ArrayList(usize).init(self.allocator));
+        for (line) |c| {
+            try banks.items[banks.items.len - 1].append(c - 48);
+        }
+    }
+    std.debug.print("Banks\n", .{});
+    for (0..banks.items.len) |i| {
+        for (0..banks.items[i].items.len) |j| {
+            std.debug.print("{d}", .{banks.items[i].items[j]});
+        }
+        std.debug.print("\n", .{});
+    }
+
+    var total: usize = 0;
+    for (0..banks.items.len) |i| {
+        var first: usize = 0;
+        var second: usize = 0;
+        for (0..banks.items[i].items.len) |j| {
+            const jolt = banks.items[i].items[j];
+            if (jolt > first and j < banks.items[i].items.len - 1) {
+                first = jolt;
+                second = 0;
+            } else if (jolt > second) {
+                second = jolt;
+            }
+        }
+        const largest = first * 10 + second;
+        std.debug.print("{d}\n", .{largest});
+        total += largest;
+    }
+    std.debug.print("Total joltage: {d}\n", .{total});
+
+    for (0..banks.items.len) |i| {
+        banks.items[i].deinit();
+    }
 }

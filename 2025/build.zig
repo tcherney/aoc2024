@@ -2,7 +2,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 const emcc = @import("src/emcc.zig");
 
-const wasm_target: std.Target.Query = .{ .cpu_arch = .wasm32, .os_tag = .emscripten };
+const wasm_target: std.Target.Query = .{ .cpu_arch = .wasm64, .os_tag = .emscripten };
 
 pub fn build_target(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) !void {
     const imglib = b.dependency("imglib", .{});
