@@ -8,6 +8,8 @@ const day2 = @import("day2.zig");
 const day3 = @import("day3.zig");
 const day4 = @import("day4.zig");
 const day5 = @import("day5.zig");
+const day6 = @import("day6.zig");
+const day7 = @import("day7.zig");
 
 pub const Engine = engine.Engine;
 const GAME_LOG = std.log.scoped(.game);
@@ -142,7 +144,8 @@ pub const Game = struct {
         //try day3.day3_p2(self);
         //try day4.day4_p1(self);
         //try day4.day4_p2(self);
-        try day5.day5_p1(self);
+        try day7.day7_p1(self);
+        try day7.day7_p2(self);
 
         // self.lock = std.Thread.Mutex{};
         // engine.set_wasm_terminal_size(35, 150);
