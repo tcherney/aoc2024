@@ -147,7 +147,7 @@ pub const Game = struct {
         //try day4.day4_p2(self);
         //try day7.day7_p1(self);
         //try day7.day7_p2(self);
-        //try day8.day8_p1(self);
+        try day8.day8_p1(self);
         try day8.day8_p2(self);
 
         // self.lock = std.Thread.Mutex{};

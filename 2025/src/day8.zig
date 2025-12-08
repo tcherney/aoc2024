@@ -70,27 +70,22 @@ pub const Distance = struct {
 
 pub const Circuits = std.AutoHashMap(usize, std.ArrayList(*JunctionPoint));
 
-pub fn ordered_insert(distances: *std.ArrayList(Distance), d: Distance) !void {
-    for (0..distances.items.len) |i| {
-        if (distances.items[i].magnitude >= d.magnitude) {
-            try distances.insert(i, d);
-            return;
-        }
-    }
-    try distances.append(d);
-}
-
 pub fn min_dist(points: []JunctionPoint, distances: *std.ArrayList(Distance)) !void {
     for (0..points.len) |i| {
         for (i + 1..points.len) |j| {
             const dist = points[i].dist(points[j]);
-            try ordered_insert(distances, .{
+            try distances.append(.{
+                .magnitude = dist,
                 .p1 = &points[i],
                 .p2 = &points[j],
-                .magnitude = dist,
             });
         }
     }
+    std.mem.sort(Distance, distances.items, {}, struct {
+        pub fn compare(_: void, lhs: Distance, rhs: Distance) bool {
+            return lhs.magnitude < rhs.magnitude;
+        }
+    }.compare);
 }
 
 pub fn ordered_count_insert(counts: []usize, val: usize) void {
@@ -185,10 +180,10 @@ pub fn day8_p2(self: anytype) !void {
     var distances = std.ArrayList(Distance).init(self.allocator);
     defer distances.deinit();
 
-    std.debug.print("Points\n", .{});
-    for (points.items) |p| {
-        std.debug.print("({d},{d},{d})\n", .{ p.x, p.y, p.z });
-    }
+    // std.debug.print("Points\n", .{});
+    // for (points.items) |p| {
+    //     std.debug.print("({d},{d},{d})\n", .{ p.x, p.y, p.z });
+    // }
     var circuits = Circuits.init(self.allocator);
     defer circuits.deinit();
     for (0..points.items.len) |i| {
@@ -236,10 +231,10 @@ pub fn day8_p1(self: anytype) !void {
     var distances = std.ArrayList(Distance).init(self.allocator);
     defer distances.deinit();
 
-    std.debug.print("Points\n", .{});
-    for (points.items) |p| {
-        std.debug.print("({d},{d},{d})\n", .{ p.x, p.y, p.z });
-    }
+    // std.debug.print("Points\n", .{});
+    // for (points.items) |p| {
+    //     std.debug.print("({d},{d},{d})\n", .{ p.x, p.y, p.z });
+    // }
     const num_connections = 1000;
     var circuits = Circuits.init(self.allocator);
     defer circuits.deinit();
