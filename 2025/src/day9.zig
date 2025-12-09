@@ -168,7 +168,7 @@ pub fn day9_p2(self: anytype) !void {
         });
     }
     //TODO generate all points, put all points into a hash map, take 2 points to make rectangle and create a line between them and verify all points in line are in map
-    //TODO this might still be too slow
+    //TODO this might still be too slow, can atleast find the biggest rectangles first in a sorted list and only verify those ones
 
     std.debug.print("Max area of rectangle {d}\n", .{max_area(points)});
 }
