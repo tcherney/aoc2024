@@ -154,8 +154,8 @@ pub const Game = struct {
         //try day7.day7_p2(self);
         // try day8.day8_p1(self);
         // try day8.day8_p2(self);
-        try day9.day9_p1(self);
-        //try day9.day9_p2(self);
+        //try day9.day9_p1(self);
+        try day9.day9_p2(self);
 
         // self.lock = std.Thread.Mutex{};
         // engine.set_wasm_terminal_size(35, 150);

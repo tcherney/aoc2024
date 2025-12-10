@@ -139,22 +139,90 @@
 // Using two red tiles as opposite corners, what is the largest area of any rectangle you can make using only red and green tiles?
 
 const std = @import("std");
+const common = @import("common");
 
 pub const Point = struct {
-    x: i64,
-    y: i64,
-
+    x: f64,
+    y: f64,
+    pub const Color = enum {
+        Red,
+        Green,
+    };
     pub fn area(self: *Point, other: Point) u64 {
         return @abs(1 + self.x - other.x) * @abs(1 + self.y - other.y);
     }
 };
 
+pub const Line = struct {
+    p1: Point,
+    p2: Point,
+    pub fn intersects_rect(self: *Line, top_left: Point, bottom_right: Point) bool {
+        _ = self;
+        _ = top_left;
+        _ = bottom_right;
+    }
+
+    const Tuple = struct {
+        first: f64,
+        second: f64,
+    };
+    fn det(a: Tuple, b: Tuple) f64 {
+        return a.first * b.second - a.second * b.first;
+    }
+
+    pub fn intersects(self: *Line, other: Line) bool {
+        const xdiff = Tuple{
+            .first = (self.p1.x - self.p2.x),
+            .second = (other.p1.x - other.p2.x),
+        };
+        const ydiff = Tuple{
+            .first = (self.p1.y - self.p2.y),
+            .second = (other.p1.y - other.p2.y),
+        };
+        const div = det(xdiff, ydiff);
+        if (div == 0) return false;
+        const d = Tuple{ .first = det(self.p1, self.p2), .second = det(other.p1, other.p2) };
+        const x = det(d, xdiff) / div;
+        const y = det(d, ydiff) / div;
+        const in_self = ((x >= self.p1.x and x <= self.p2.x) or (x >= self.p2.x and x <= self.p1.x)) and
+            ((y >= self.p1.y and y <= self.p2.y) or (y >= self.p2.y and y <= self.p1.y));
+        const in_other = ((x >= other.p1.x and x <= other.p2.x) or (x >= other.p2.x and x <= other.p1.x)) and
+            ((y >= other.p1.y and y <= other.p2.y) or (y >= other.p2.y and y <= other.p1.y));
+        return in_self and in_other;
+    }
+};
+
+pub fn print_points(points: std.AutoHashMap(Point, Point.Color), min_bound: Point, max_bound: Point) void {
+    for (@as(usize, @bitCast(min_bound.x))..@as(usize, @bitCast(max_bound.x + 1))) |x| {
+        for (@as(usize, @bitCast(min_bound.y))..@as(usize, @bitCast(max_bound.y + 1))) |y| {
+            const e = points.getEntry(.{
+                .x = @bitCast(x),
+                .y = @bitCast(y),
+            });
+            if (e) |p| {
+                if (p.value_ptr.* == .Red) {
+                    std.debug.print(common.ColoredTerminal.colored_format("#", .red), .{});
+                } else if (p.value_ptr.* == .Green) {
+                    std.debug.print(common.ColoredTerminal.colored_format("X", .green), .{});
+                }
+            } else {
+                std.debug.print(".", .{});
+            }
+        }
+        std.debug.print("\n", .{});
+    }
+}
+
 pub fn day9_p2(self: anytype) !void {
-    const f = try std.fs.cwd().openFile("inputs/day9/input.txt", .{});
+    const f = try std.fs.cwd().openFile("inputs/day9/small.txt", .{});
     defer f.close();
     var buf: [65536]u8 = undefined;
-    var points = std.ArrayList(Point).init(self.allocator);
+    var points = std.AutoHashMap(Point, Point.Color).init(self.allocator);
     defer points.deinit();
+    var first: ?Point = null;
+    var prev: Point = undefined;
+    var min_bound: Point = .{ .x = 0, .y = 0 };
+    var max_bound: Point = .{ .x = 0, .y = 0 };
     while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |unfiltered| {
         var line = unfiltered;
         if (std.mem.indexOfScalar(u8, unfiltered, '\r')) |indx| {
@@ -162,15 +230,95 @@ pub fn day9_p2(self: anytype) !void {
         }
         if (line.len == 0) continue;
         var iter = std.mem.splitScalar(u8, line, ',');
-        try points.append(.{
-            .x = try std.fmt.parseInt(i64, iter.next().?, 10),
-            .y = try std.fmt.parseInt(i64, iter.next().?, 10),
-        });
+        const new_point = Point{
+            .x = try std.fmt.parseFloat(f64, iter.next().?),
+            .y = try std.fmt.parseFloat(f64, iter.next().?),
+        };
+        if (first == null) {
+            first = new_point;
+            min_bound.x = new_point.x;
+            min_bound.y = new_point.y;
+            max_bound.x = new_point.x;
+            max_bound.y = new_point.x;
+        } else {
+            min_bound.x = @min(min_bound.x, new_point.x);
+            min_bound.y = @min(min_bound.y, new_point.y);
+            max_bound.x = @max(max_bound.x, new_point.x);
+            max_bound.y = @max(max_bound.y, new_point.y);
+            var min_point: Point = undefined;
+            var max_point: Point = undefined;
+            if (prev.x > new_point.x) {
+                min_point.x = new_point.x;
+                max_point.x = prev.x;
+            } else {
+                max_point.x = new_point.x;
+                min_point.x = prev.x;
+            }
+            if (prev.y > new_point.y) {
+                min_point.y = new_point.y;
+                max_point.y = prev.y;
+            } else {
+                max_point.y = new_point.y;
+                min_point.y = prev.y;
+            }
+            std.debug.print("min {any}, max {any}\n", .{ min_point, max_point });
+            if (prev.x == new_point.x) {
+                for (@as(usize, @intFromFloat(min_point.y + 1))..@as(usize, @intFromFloat(max_point.y))) |y| {
+                    try points.put(.{
+                        .x = prev.x,
+                        .y = @floatFromInt(y),
+                    }, .Green);
+                }
+            } else {
+                for (@as(usize, @intFromFloat(min_point.x + 1))..@as(usize, @intFromFloat(max_point.x))) |x| {
+                    try points.put(.{
+                        .x = @floatFromInt(x),
+                        .y = prev.y,
+                    }, .Green);
+                }
+            }
+        }
+        prev = new_point;
+        try points.put(new_point, .Red);
     }
+    var min_point: Point = undefined;
+    var max_point: Point = undefined;
+    if (prev.x > first.?.x) {
+        min_point.x = first.?.x;
+        max_point.x = prev.x;
+    } else {
+        max_point.x = first.?.x;
+        min_point.x = prev.x;
+    }
+    if (prev.y > first.?.y) {
+        min_point.y = first.?.y;
+        max_point.y = prev.y;
+    } else {
+        max_point.y = first.?.y;
+        min_point.y = prev.y;
+    }
+    std.debug.print("min {any}, max {any}\n", .{ min_point, max_point });
+    if (prev.x == first.?.x) {
+        for (@as(usize, @intFromFloat(min_point.y + 1))..@as(usize, @intFromFloat(max_point.y))) |y| {
+            try points.put(.{
+                .x = prev.x,
+                .y = @floatFromInt(y),
+            }, .Green);
+        }
+    } else {
+        for (@as(usize, @intFromFloat(min_point.x + 1))..@as(usize, @intFromFloat(max_point.x))) |x| {
+            try points.put(.{
+                .x = @floatFromInt(x),
+                .y = prev.y,
+            }, .Green);
+        }
+    }
+
+    print_points(points, min_bound, max_bound);
     //TODO generate all points, put all points into a hash map, take 2 points to make rectangle and create a line between them and verify all points in line are in map
     //TODO this might still be too slow, can atleast find the biggest rectangles first in a sorted list and only verify those ones
 
-    std.debug.print("Max area of rectangle {d}\n", .{max_area(points)});
+    std.debug.print("Max area of rectangle {d}\n", .{0});
 }
 
 pub fn max_area(points: std.ArrayList(Point)) usize {
@@ -198,8 +346,8 @@ pub fn day9_p1(self: anytype) !void {
         if (line.len == 0) continue;
         var iter = std.mem.splitScalar(u8, line, ',');
         try points.append(.{
-            .x = try std.fmt.parseInt(i64, iter.next().?, 10),
-            .y = try std.fmt.parseInt(i64, iter.next().?, 10),
+            .x = try std.fmt.parseInt(f64, iter.next().?),
+            .y = try std.fmt.parseInt(f64, iter.next().?),
         });
     }
     std.debug.print("Max area of rectangle {d}\n", .{max_area(points)});
