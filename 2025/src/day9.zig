@@ -138,6 +138,8 @@
 // ..............
 // Using two red tiles as opposite corners, what is the largest area of any rectangle you can make using only red and green tiles?
 
+//TODO https://github.com/alexprengere/advent_of_code/blob/master/2025/09/python/main.py
+
 const std = @import("std");
 const common = @import("common");
 
@@ -148,18 +150,47 @@ pub const Point = struct {
         Red,
         Green,
     };
-    pub fn area(self: *Point, other: Point) u64 {
-        return @abs(1 + self.x - other.x) * @abs(1 + self.y - other.y);
+    pub fn eql(self: *const Point, other: Point) bool {
+        return self.x == other.x or self.y == other.y;
+    }
+    pub fn area(self: *const Point, other: Point) u64 {
+        const min_x = @min(self.x, other.x);
+        const min_y = @min(self.y, other.y);
+        const max_x = @max(self.x, other.x);
+        const max_y = @max(self.y, other.y);
+        return @as(u64, @intFromFloat(@abs(1 + max_x - min_x))) * @as(u64, @intFromFloat(@abs(1 + max_y - min_y)));
     }
 };
 
 pub const Line = struct {
     p1: Point,
     p2: Point,
-    pub fn intersects_rect(self: *Line, top_left: Point, bottom_right: Point) bool {
-        _ = self;
-        _ = top_left;
-        _ = bottom_right;
+    pub fn intersects_rect(self: *const Line, top_left: Point, top_right: Point, bottom_left: Point, bottom_right: Point) bool {
+        const l1 = Line{
+            .p1 = top_left,
+            .p2 = top_right,
+        };
+        const l2 = Line{
+            .p1 = top_right,
+            .p2 = bottom_right,
+        };
+        const l3 = Line{
+            .p1 = bottom_left,
+            .p2 = bottom_right,
+        };
+        const l4 = Line{
+            .p1 = top_left,
+            .p2 = bottom_left,
+        };
+        return self.intersects(l1) or self.intersects(l2) or self.intersects(l3) or self.intersects(l4);
+    }
+
+    pub fn contains(self: *const Line, p: Point) bool {
+        const min_x = @min(self.p1.x, self.p2.x);
+        const min_y = @min(self.p1.y, self.p2.y);
+        const max_x = @max(self.p1.x, self.p2.x);
+        const max_y = @max(self.p1.y, self.p2.y);
+        return p.x >= min_x and p.x <= max_x and p.y >= min_y and p.y <= max_y;
     }
 
     const Tuple = struct {
@@ -169,8 +200,8 @@ pub const Line = struct {
     fn det(a: Tuple, b: Tuple) f64 {
         return a.first * b.second - a.second * b.first;
     }
-
-    pub fn intersects(self: *Line, other: Line) bool {
+    //TODO fix this
+    pub fn intersects(self: *const Line, other: Line) bool {
         const xdiff = Tuple{
             .first = (self.p1.x - self.p2.x),
             .second = (other.p1.x - other.p2.x),
@@ -181,13 +212,39 @@ pub const Line = struct {
         };
         const div = det(xdiff, ydiff);
         if (div == 0) return false;
-        const d = Tuple{ .first = det(self.p1, self.p2), .second = det(other.p1, other.p2) };
+        const d = Tuple{ .first = det(.{ .first = self.p1.x, .second = self.p1.y }, .{ .first = self.p2.x, .second = self.p2.y }), .second = det(.{ .first = other.p1.x, .second = other.p1.y }, .{ .first = other.p2.x, .second = other.p2.y }) };
         const x = det(d, xdiff) / div;
         const y = det(d, ydiff) / div;
-        const in_self = ((x >= self.p1.x and x <= self.p2.x) or (x >= self.p2.x and x <= self.p1.x)) and
-            ((y >= self.p1.y and y <= self.p2.y) or (y >= self.p2.y and y <= self.p1.y));
-        const in_other = ((x >= other.p1.x and x <= other.p2.x) or (x >= other.p2.x and x <= other.p1.x)) and
-            ((y >= other.p1.y and y <= other.p2.y) or (y >= other.p2.y and y <= other.p1.y));
+
+        var in_x_self: bool = false;
+        if (self.p1.x <= self.p2.x) {
+            in_x_self = x >= self.p1.x and x <= self.p2.x;
+        } else {
+            in_x_self = x >= self.p2.x and x <= self.p1.x;
+        }
+        var in_y_self: bool = false;
+        if (self.p1.y <= self.p2.y) {
+            in_y_self = y >= self.p1.y and y <= self.p2.y;
+        } else {
+            in_y_self = y >= self.p2.y and y <= self.p1.y;
+        }
+        const in_self: bool = in_x_self and in_y_self;
+
+        var in_x_other: bool = false;
+        if (other.p1.x <= other.p2.x) {
+            in_x_other = x >= other.p1.x and x <= other.p2.x;
+        } else {
+            in_x_other = x >= other.p2.x and x <= other.p1.x;
+        }
+        var in_y_other: bool = false;
+        if (other.p1.y <= other.p2.y) {
+            //std.debug.print("{d} in between {d} and {d}\n", .{ y, other.p1.y, other.p2.y });
+            in_y_other = y >= other.p1.y and y <= other.p2.y;
+        } else {
+            in_y_other = y >= other.p2.y and y <= other.p1.y;
+        }
+        const in_other: bool = in_x_other and in_y_other;
+        //std.debug.print("{any} intersects {any} at ({d},{d}) {any}\n", .{ self, other, x, y, in_self and in_other });
         return in_self and in_other;
     }
 };
@@ -195,12 +252,15 @@ pub const Line = struct {
 var world: []u8 = undefined;
 var width: u32 = undefined;
 var height: u32 = undefined;
-var points: std.ArrayList(Line) = undefined;
+var lines: std.ArrayList(Line) = undefined;
+var points: std.ArrayList(Point) = undefined;
+var x_coord: std.AutoHashMap(u64, std.ArrayList(i64)) = undefined;
+var y_coord: std.AutoHashMap(u64, std.ArrayList(i64)) = undefined;
 pub var part1: bool = false;
 pub var part2: bool = false;
 
 pub fn on_render(self: anytype, _: u64) void {
-    for (points.items) |l| {
+    for (lines.items) |l| {
         if (l.p1.x == l.p2.x) {
             const p_start = if (l.p1.y < l.p2.y) l.p1 else l.p2;
             const p_end = if (l.p1.y < l.p2.y) l.p2 else l.p1;
@@ -229,36 +289,149 @@ pub fn on_render(self: anytype, _: u64) void {
 }
 
 pub fn deinit(self: anytype) void {
-    points.deinit();
+    if (part1) {
+        points.deinit();
+    }
     if (part2) {
+        lines.deinit();
         self.allocator.free(world);
+        var iter = x_coord.iterator();
+        while (iter.next()) |item| {
+            item.value_ptr.deinit();
+        }
+        iter = y_coord.iterator();
+        while (iter.next()) |item| {
+            item.value_ptr.deinit();
+        }
+        x_coord.deinit();
+        y_coord.deinit();
     }
 }
 
-pub fn max_area2(allocator: std.mem.Allocator) usize {
-    var areas = std.ArrayList(Rect).init(allocator);
-    defer areas.deinit();
-    for (0..points.items.len) |i| {
-        for (i + 1..points.items.len) |j| {
-            //std.debug.print("P1 ({d},{d}) P2 ({d}, {d})\n", .{ points.items[i].x, points.items[i].y, points.items[j].x, points.items[j].y });
-            const top_indx = if (points.items[i].p1.y < points.items[j].p1.y) i else if (points.items[i].p1.y == points.items[j].p1.y and points.items[i].p1.x < points.items[j].p1.x) i else j;
-            const top_left = if (top_indx == i) points.items[i].p1 else points.items[j].p1;
-            const bottom_right = if (top_indx == i) points.items[j].p1 else points.items[i].p1;
-            const top_right = Point{
-                .x = bottom_right.x,
-                .y = top_left.y,
-            };
-            const bottom_left = Point{ .x = top_left.x, .y = bottom_right.y };
-            try areas.append(Rect{ .top_left = top_left, .top_right = top_right, .bottom_left = bottom_left, .bottom_right = bottom_right, .area = points.items[i].p1.area(points.items[j].p1) });
+pub fn binary_search(pts: std.ArrayList(f64), val: f64) f64 {
+    var low: f64 = 0;
+    var high: f64 = @as(f64, @floatFromInt(pts.items.len)) - 1;
+    while (low <= high) {
+        const mid = low + (high - low) / 2;
+        if (pts.items[@intFromFloat(mid)] == val) {
+            return mid;
+        } else if (pts.items[@intFromFloat(mid)] < val) {
+            low = mid + 1;
+        } else {
+            high = mid - 1;
         }
     }
-    std.mem.sort(usize, areas.items, {}, struct {
+    return -1;
+}
+
+pub fn max_area2(allocator: std.mem.Allocator) !u64 {
+    var areas = std.ArrayList(Rect).init(allocator);
+    defer areas.deinit();
+    for (0..lines.items.len) |i| {
+        for (i + 1..lines.items.len) |j| {
+            // const top_indx = if (lines.items[i].p1.y < lines.items[j].p1.y) i else if (lines.items[i].p1.y == lines.items[j].p1.y and lines.items[i].p1.x < lines.items[j].p1.x) i else j;
+            // const top_left = if (top_indx == i) lines.items[i].p1 else lines.items[j].p1;
+            // const bottom_right = if (top_indx == i) lines.items[j].p1 else lines.items[i].p1;
+            // const top_right = Point{
+            //     .x = bottom_right.x,
+            //     .y = top_left.y,
+            // };
+            // const bottom_left = Point{ .x = top_left.x, .y = bottom_right.y };
+            // if ((lines.items[i].p1.x == 5578 and lines.items[i].p1.y == 67676 and lines.items[j].p1.x == 94876 and lines.items[j].p1.y == 50058) or
+            //     (lines.items[i].p1.x == 94876 and lines.items[i].p1.y == 50058 and lines.items[j].p1.x == 5578 and lines.items[j].p1.y == 67676))
+            // {
+            //     std.debug.print("Found the points {any}, {any}\nArea: {d} {any} {any}\n", .{ lines.items[i].p1, lines.items[j].p1, top_left.area(bottom_right), top_left, bottom_right });
+            // }
+            // try areas.append(Rect{ .top_left = top_left, .top_right = top_right, .bottom_left = bottom_left, .bottom_right = bottom_right, .area = top_left.area(bottom_right) });
+            const min_x = @min(lines.items[i].p1.x, lines.items[j].p1.x);
+            const min_y = @min(lines.items[i].p1.y, lines.items[j].p1.y);
+            const max_x = @max(lines.items[i].p1.x, lines.items[j].p1.x);
+            const max_y = @max(lines.items[i].p1.y, lines.items[j].p1.y);
+            const top_left = Point{
+                .x = min_x,
+                .y = min_y,
+            };
+            const top_right = Point{
+                .x = max_x,
+                .y = min_y,
+            };
+            const bottom_left = Point{
+                .x = min_x,
+                .y = max_y,
+            };
+            const bottom_right = Point{
+                .x = max_x,
+                .y = max_y,
+            };
+            try areas.append(Rect{ .top_left = top_left, .top_right = top_right, .bottom_left = bottom_left, .bottom_right = bottom_right, .area = top_left.area(bottom_right) });
+        }
+    }
+    std.mem.sort(Rect, areas.items, {}, struct {
         pub fn compare(_: void, lhs: Rect, rhs: Rect) bool {
             return lhs.area > rhs.area;
         }
     }.compare);
-    for (areas.items) |a| {
+    outer: for (areas.items) |a| {
         std.debug.print("{d}\n", .{a.area});
+
+        var viable: bool = true;
+        var top_left_valid: bool = false;
+        var bottom_right_valid: bool = false;
+        for (lines.items) |l| {
+            if (l.p1.eql(a.top_left)) {
+                top_left_valid = true;
+            } else if (l.p1.eql(a.bottom_right)) {
+                bottom_right_valid = true;
+            }
+            if (l.intersects_rect(a.top_left, a.top_right, a.bottom_left, a.bottom_right) and !l.p1.eql(a.top_left) and !l.p1.eql(a.top_right) and !l.p1.eql(a.bottom_left) and !l.p1.eql(a.bottom_right) and !l.p2.eql(a.top_left) and !l.p2.eql(a.top_right) and !l.p2.eql(a.bottom_left) and !l.p2.eql(a.bottom_right)) {
+                viable = false;
+                break;
+            }
+        }
+        if (viable and top_left_valid and bottom_right_valid) {
+            std.debug.print("Viable {any}\n", .{a});
+            //TODO go through both vertical lines go through x_coord for each y value and do scanline algo to verify in polygon
+            for (@intFromFloat(a.top_left.y + 1)..@intFromFloat(a.bottom_left.y)) |y| {
+                const x_entry_opt = x_coord.get(y);
+                if (x_entry_opt) |x_entry| {
+                    var in_poly: bool = false;
+                    var prev_x: ?i64 = null;
+                    for (x_entry.items) |x| {
+                        if (prev_x != null and (prev_x.? + 1 == x or prev_x.? == x)) {
+                            prev_x = x;
+                            continue;
+                        }
+                        if (@as(i64, @intFromFloat(a.top_left.x)) < x and !in_poly) {
+                            if (a.area == 1573359081) {
+                                std.debug.print("Answer failed scanline {d}, {d}, {d}\n{any}", .{ x, y, x_entry.items.len, x_entry.items });
+                            }
+                            continue :outer;
+                        } else if (@as(i64, @intFromFloat(a.top_right.x)) <= x) {
+                            if (!in_poly) continue :outer;
+                            break;
+                        } else {
+                            in_poly = !in_poly;
+                        }
+                        prev_x = x;
+                    }
+                } else {
+                    if (a.area == 1573359081) {
+                        std.debug.print("Answer failed scanline\n", .{});
+                    }
+                    continue;
+                }
+            }
+            return a.area;
+            // const min_x = a.top_left.x + 1;
+            // const max_x = a.top_right.x - 1;
+            // const min_y = a.top_left.y + 1;
+            // const max_y = a.bottom_right.y - 1;
+            // if (binary_search(y_coord.get(@intFromFloat(min_x)) orelse continue, min_y) != binary_search(y_coord.get(@intFromFloat(min_x)) orelse continue, max_y)) continue;
+            // if (binary_search(y_coord.get(@intFromFloat(max_x)) orelse continue, min_y) != binary_search(y_coord.get(@intFromFloat(max_x)) orelse continue, max_y)) continue;
+            // if (binary_search(x_coord.get(@intFromFloat(min_y)) orelse continue, min_x) != binary_search(x_coord.get(@intFromFloat(min_y)) orelse continue, max_x)) continue;
+            // if (binary_search(x_coord.get(@intFromFloat(max_y)) orelse continue, min_x) != binary_search(x_coord.get(@intFromFloat(max_y)) orelse continue, max_x)) continue;
+            // return a.area;
+        }
     }
     return areas.items[0].area;
 }
@@ -268,20 +441,68 @@ const Rect = struct {
     top_right: Point,
     bottom_left: Point,
     bottom_right: Point,
-    area: usize,
+    area: u64,
 };
+
+pub fn add_point_list(allocator: std.mem.Allocator, p1: Point, p2: Point) !void {
+    const min_x: usize = @intFromFloat(@min(p1.x, p2.x));
+    const max_x: usize = @intFromFloat(@max(p1.x, p2.x));
+    const min_y: usize = @intFromFloat(@min(p1.y, p2.y));
+    const max_y: usize = @intFromFloat(@max(p1.y, p2.y));
+    if (min_x == max_x) {
+        for (min_y..max_y) |y_usize| {
+            const y: f64 = @floatFromInt(y_usize);
+            const p = Point{ .x = p1.x, .y = y };
+            const x_entry = try x_coord.getOrPut(@intFromFloat(p.y));
+            if (x_entry.found_existing) {
+                try x_entry.value_ptr.append(@intFromFloat(p.x));
+            } else {
+                x_entry.value_ptr.* = std.ArrayList(i64).init(allocator);
+                try x_entry.value_ptr.append(@intFromFloat(p.x));
+            }
+            const y_entry = try y_coord.getOrPut(@intFromFloat(p.x));
+            if (y_entry.found_existing) {
+                try y_entry.value_ptr.append(@intFromFloat(p.y));
+            } else {
+                y_entry.value_ptr.* = std.ArrayList(i64).init(allocator);
+                try y_entry.value_ptr.append(@intFromFloat(p.y));
+            }
+        }
+    } else {
+        for (min_x..max_x) |x_usize| {
+            const x: f64 = @floatFromInt(x_usize);
+            const p = Point{ .x = x, .y = p1.y };
+            const x_entry = try x_coord.getOrPut(@intFromFloat(p.y));
+            if (x_entry.found_existing) {
+                try x_entry.value_ptr.append(@intFromFloat(p.x));
+            } else {
+                x_entry.value_ptr.* = std.ArrayList(i64).init(allocator);
+                try x_entry.value_ptr.append(@intFromFloat(p.x));
+            }
+            const y_entry = try y_coord.getOrPut(@intFromFloat(p.x));
+            if (y_entry.found_existing) {
+                try y_entry.value_ptr.append(@intFromFloat(p.y));
+            } else {
+                y_entry.value_ptr.* = std.ArrayList(i64).init(allocator);
+                try y_entry.value_ptr.append(@intFromFloat(p.y));
+            }
+        }
+    }
+}
 
 pub fn day9_p2(self: anytype) !void {
     part2 = true;
-    const f = try std.fs.cwd().openFile("inputs/day9/small.txt", .{});
+    const f = try std.fs.cwd().openFile("inputs/day9/input.txt", .{});
     defer f.close();
     var buf: [65536]u8 = undefined;
-    points = std.ArrayList(Line).init(self.allocator);
+    lines = std.ArrayList(Line).init(self.allocator);
 
     var first: ?Point = null;
     var prev: Point = undefined;
     var min_bound: Point = .{ .x = 0, .y = 0 };
     var max_bound: Point = .{ .x = 0, .y = 0 };
+    y_coord = std.AutoHashMap(u64, std.ArrayList(i64)).init(self.allocator);
+    x_coord = std.AutoHashMap(u64, std.ArrayList(i64)).init(self.allocator);
     while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |unfiltered| {
         var line = unfiltered;
         if (std.mem.indexOfScalar(u8, unfiltered, '\r')) |indx| {
@@ -304,27 +525,37 @@ pub fn day9_p2(self: anytype) !void {
             min_bound.y = @min(min_bound.y, new_point.y);
             max_bound.x = @max(max_bound.x, new_point.x);
             max_bound.y = @max(max_bound.y, new_point.y);
-            try points.append(.{
+            try lines.append(.{
                 .p1 = prev,
                 .p2 = new_point,
             });
+            try add_point_list(self.allocator, prev, new_point);
         }
+
         prev = new_point;
     }
-    try points.append(.{
+    try lines.append(.{
         .p1 = prev,
         .p2 = first.?,
     });
+    try add_point_list(self.allocator, prev, first.?);
+    var iter = x_coord.iterator();
+    while (iter.next()) |item| {
+        std.mem.sort(i64, item.value_ptr.items, {}, comptime std.sort.asc(i64));
+    }
+    iter = y_coord.iterator();
+    while (iter.next()) |item| {
+        std.mem.sort(i64, item.value_ptr.items, {}, comptime std.sort.asc(i64));
+    }
+    std.debug.print("Max area of rectangle {d}\n", .{try max_area2(self.allocator)});
     width = @intFromFloat(max_bound.x + 1);
     height = @intFromFloat(max_bound.y + 1);
     try self.window.rect(width, height, 0, 0, 0, 255);
     std.debug.print("Width {d}, {d}\n Height {d}, {d}\n", .{ width, self.window.width, height, self.window.height });
-
-    std.debug.print("Max area of rectangle {d}\n", .{max_area2(self.allocator)});
 }
 
-pub fn max_area() usize {
-    var area: usize = 0;
+pub fn max_area() f64 {
+    var area: f64 = 0;
     for (0..points.items.len) |i| {
         for (i + 1..points.items.len) |j| {
             //std.debug.print("P1 ({d},{d}) P2 ({d}, {d})\n", .{ points.items[i].x, points.items[i].y, points.items[j].x, points.items[j].y });
