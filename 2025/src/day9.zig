@@ -138,8 +138,6 @@
 // ..............
 // Using two red tiles as opposite corners, what is the largest area of any rectangle you can make using only red and green tiles?
 
-//TODO https://github.com/alexprengere/advent_of_code/blob/master/2025/09/python/main.py
-
 const std = @import("std");
 const common = @import("common");
 
@@ -329,20 +327,6 @@ pub fn max_area2(allocator: std.mem.Allocator) !u64 {
     defer areas.deinit();
     for (0..lines.items.len) |i| {
         for (i + 1..lines.items.len) |j| {
-            // const top_indx = if (lines.items[i].p1.y < lines.items[j].p1.y) i else if (lines.items[i].p1.y == lines.items[j].p1.y and lines.items[i].p1.x < lines.items[j].p1.x) i else j;
-            // const top_left = if (top_indx == i) lines.items[i].p1 else lines.items[j].p1;
-            // const bottom_right = if (top_indx == i) lines.items[j].p1 else lines.items[i].p1;
-            // const top_right = Point{
-            //     .x = bottom_right.x,
-            //     .y = top_left.y,
-            // };
-            // const bottom_left = Point{ .x = top_left.x, .y = bottom_right.y };
-            // if ((lines.items[i].p1.x == 5578 and lines.items[i].p1.y == 67676 and lines.items[j].p1.x == 94876 and lines.items[j].p1.y == 50058) or
-            //     (lines.items[i].p1.x == 94876 and lines.items[i].p1.y == 50058 and lines.items[j].p1.x == 5578 and lines.items[j].p1.y == 67676))
-            // {
-            //     std.debug.print("Found the points {any}, {any}\nArea: {d} {any} {any}\n", .{ lines.items[i].p1, lines.items[j].p1, top_left.area(bottom_right), top_left, bottom_right });
-            // }
-            // try areas.append(Rect{ .top_left = top_left, .top_right = top_right, .bottom_left = bottom_left, .bottom_right = bottom_right, .area = top_left.area(bottom_right) });
             const min_x = @min(lines.items[i].p1.x, lines.items[j].p1.x);
             const min_y = @min(lines.items[i].p1.y, lines.items[j].p1.y);
             const max_x = @max(lines.items[i].p1.x, lines.items[j].p1.x);
@@ -373,7 +357,6 @@ pub fn max_area2(allocator: std.mem.Allocator) !u64 {
     }.compare);
     outer: for (areas.items) |a| {
         std.debug.print("{d}\n", .{a.area});
-
         var viable: bool = true;
         var top_left_valid: bool = false;
         var bottom_right_valid: bool = false;
@@ -390,7 +373,6 @@ pub fn max_area2(allocator: std.mem.Allocator) !u64 {
         }
         if (viable and top_left_valid and bottom_right_valid) {
             std.debug.print("Viable {any}\n", .{a});
-            //TODO go through both vertical lines go through x_coord for each y value and do scanline algo to verify in polygon
             for (@intFromFloat(a.top_left.y + 1)..@intFromFloat(a.bottom_left.y)) |y| {
                 const x_entry_opt = x_coord.get(y);
                 if (x_entry_opt) |x_entry| {
@@ -402,9 +384,6 @@ pub fn max_area2(allocator: std.mem.Allocator) !u64 {
                             continue;
                         }
                         if (@as(i64, @intFromFloat(a.top_left.x)) < x and !in_poly) {
-                            if (a.area == 1573359081) {
-                                std.debug.print("Answer failed scanline {d}, {d}, {d}\n{any}", .{ x, y, x_entry.items.len, x_entry.items });
-                            }
                             continue :outer;
                         } else if (@as(i64, @intFromFloat(a.top_right.x)) <= x) {
                             if (!in_poly) continue :outer;
@@ -415,9 +394,6 @@ pub fn max_area2(allocator: std.mem.Allocator) !u64 {
                         prev_x = x;
                     }
                 } else {
-                    if (a.area == 1573359081) {
-                        std.debug.print("Answer failed scanline\n", .{});
-                    }
                     continue;
                 }
             }
@@ -548,6 +524,10 @@ pub fn day9_p2(self: anytype) !void {
         std.mem.sort(i64, item.value_ptr.items, {}, comptime std.sort.asc(i64));
     }
     std.debug.print("Max area of rectangle {d}\n", .{try max_area2(self.allocator)});
+    if (max_bound.x > 1000) {
+        max_bound.x = 1000;
+        max_bound.y = 1000;
+    }
     width = @intFromFloat(max_bound.x + 1);
     height = @intFromFloat(max_bound.y + 1);
     try self.window.rect(width, height, 0, 0, 0, 255);
