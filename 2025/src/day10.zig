@@ -48,92 +48,352 @@ const std = @import("std");
 const common = @import("common");
 
 pub const Machine = struct {
-    lights: []u8,
-    buttons: std.ArrayList(std.ArrayList(usize)),
-    joltages: std.ArrayList(usize),
+    lights: u64,
+    buttons: std.ArrayList(u64),
     allocator: std.mem.Allocator,
 
     pub fn init(allocator: std.mem.Allocator) Machine {
         return .{
-            .lights = "",
-            .buttons = std.ArrayList(std.ArrayList(usize)).init(allocator),
-            .joltages = std.ArrayList(usize).init(allocator),
+            .lights = 0,
+            .buttons = std.ArrayList(u64).init(allocator),
             .allocator = allocator,
         };
     }
     pub fn deinit(self: *Machine) void {
-        self.allocator.free(self.lights);
-        self.joltages.deinit();
-        for (0..self.buttons.items.len) |i| {
-            self.buttons.items[i].deinit();
-        }
         self.buttons.deinit();
     }
 };
 
-pub fn day10_p2(_: anytype) !void {
+pub const MachineV2 = struct {
+    buttons: std.ArrayList(std.ArrayList(u64)),
+    joltages: std.ArrayList(u64),
+    allocator: std.mem.Allocator,
+
+    pub fn init(allocator: std.mem.Allocator) MachineV2 {
+        return .{
+            .buttons = std.ArrayList(std.ArrayList(u64)).init(allocator),
+            .joltages = std.ArrayList(u64).init(allocator),
+            .allocator = allocator,
+        };
+    }
+    pub fn deinit(self: *MachineV2) void {
+        self.joltages.deinit();
+        for (self.buttons.items) |b| {
+            b.deinit();
+        }
+        self.buttons.deinit();
+    }
+
+    pub fn find(items: std.ArrayList(u64), val: u64) bool {
+        for (0..items.items.len) |i| {
+            if (items.items[i] == val) return true;
+        }
+        return false;
+    }
+
+    pub fn swap_rows(mat: [][]f64, row1: usize, row2: usize) void {
+        for (0..mat[0].len) |c| {
+            const temp = mat[row1][c];
+            mat[row1][c] = mat[row2][c];
+            mat[row2][c] = temp;
+        }
+    }
+
+    pub fn solve(self: *const MachineV2) !u64 {
+        const cols = self.buttons.items.len + 1;
+        const rows = self.joltages.items.len;
+        var mat = try self.allocator.alloc([]f64, rows);
+        defer self.allocator.free(mat);
+        for (0..rows) |r| {
+            mat[r] = try self.allocator.alloc(f64, cols);
+            for (0..cols) |c| {
+                if (c == cols - 1) {
+                    mat[r][c] = @floatFromInt(self.joltages.items[r]);
+                } else if (find(self.buttons.items[c], r)) {
+                    mat[r][c] = 1;
+                } else {
+                    mat[r][c] = 0;
+                }
+                std.debug.print("{d}", .{mat[r][c]});
+            }
+            std.debug.print("\n", .{});
+        }
+        for (0..rows) |r| {
+            var before: bool = false;
+            for (0..cols) |c| {
+                if (c == cols - 1) {
+                    std.debug.print("= {d} ", .{mat[r][c]});
+                } else if (mat[r][c] == 1) {
+                    if (before) {
+                        std.debug.print("+ x{d} ", .{c});
+                    } else {
+                        std.debug.print("x{d} ", .{c});
+                        before = true;
+                    }
+                }
+            }
+            std.debug.print("\n", .{});
+        }
+        // ---------
+        for (0..@min(cols, rows)) |k| {
+            var i_max: usize = k;
+            var v_max = mat[i_max][k];
+            for (k + 1..rows) |i| {
+                if (@abs(mat[i][k]) > v_max) {
+                    v_max = mat[i][k];
+                    i_max = i;
+                }
+            }
+            if (i_max != k) {
+                for (0..cols) |c| {
+                    const temp = mat[k][c];
+                    mat[k][c] = mat[i_max][c];
+                    mat[i_max][c] = temp;
+                }
+            }
+            for (k + 1..rows) |l| {
+                const f = mat[l][k] / mat[k][k];
+                for (k + 1..cols) |j| {
+                    mat[l][j] -= mat[k][j] * f;
+                }
+                mat[l][k] = 0;
+            }
+        }
+        std.debug.print("------------\n", .{});
+        for (0..rows) |r| {
+            for (0..cols) |c| {
+                std.debug.print("{d}", .{mat[r][c]});
+            }
+            std.debug.print("\n", .{});
+        }
+
+        var x = try self.allocator.alloc(f64, cols);
+        @memset(x, 0);
+        defer self.allocator.free(x);
+        var i: usize = rows - 1;
+        while (i >= 0) : (i -= 1) {
+            if (i + 1 < cols) {
+                x[i] = mat[i][cols - 1];
+                for (i + 1..cols) |j| {
+                    x[i] -= mat[i][j] * x[j];
+                }
+                x[i] = x[i] / mat[i][i];
+            }
+            if (i == 0) break;
+        }
+
+        // for (0..rows) |i| {
+        //     if (mat[i][i] == 0) {
+        //         var c: usize = 1;
+        //         while ((i + c) < rows and mat[i + c][i] == 0) {
+        //             c += 1;
+        //         }
+        //         if ((i + c) == rows) {
+        //             break;
+        //         }
+        //         const j = i;
+        //         for (0..cols) |k| {
+        //             const temp = mat[j][k];
+        //             mat[j][k] = mat[j + c][k];
+        //             mat[j + c][k] = temp;
+        //         }
+        //     }
+        //     for (0..rows) |j| {
+        //         if (i != j) {
+        //             const p = mat[j][i] / mat[i][i];
+        //             for (0..cols) |k| {
+        //                 mat[j][k] = mat[j][k] - mat[i][k] * p;
+        //             }
+        //         }
+        //     }
+        // }
+        // ---------------
+        std.debug.print("------------\n", .{});
+        for (0..rows) |r| {
+            for (0..cols) |c| {
+                std.debug.print("{d}", .{mat[r][c]});
+            }
+            std.debug.print("\n", .{});
+        }
+        for (0..rows) |r| {
+            var before: bool = false;
+            for (0..cols) |c| {
+                if (c == cols - 1) {
+                    std.debug.print("= {d} ", .{mat[r][c]});
+                } else if (mat[r][c] != 0) {
+                    if (before) {
+                        if (mat[r][c] != 1) {
+                            if (mat[r][c] < 0) {
+                                std.debug.print("-", .{});
+                            } else {
+                                std.debug.print("+", .{});
+                            }
+                            std.debug.print(" {d}x{d} ", .{ mat[r][c], c });
+                        } else {
+                            std.debug.print("+ x{d} ", .{c});
+                        }
+                    } else {
+                        if (mat[r][c] == 1) {
+                            std.debug.print("x{d} ", .{c});
+                        } else {
+                            std.debug.print("{d}x{d} ", .{ mat[r][c], c });
+                        }
+                        before = true;
+                    }
+                }
+            }
+            std.debug.print("\n", .{});
+            defer self.allocator.free(mat[r]);
+        }
+        return 0;
+    }
+};
+
+pub const State = struct {
+    state: u64,
+    buttons_left: std.ArrayList(u64),
+    cost: u64,
+};
+
+pub const Queue = std.ArrayList(State);
+
+pub fn combinations(allocator: std.mem.Allocator, sequence: []u64, length: usize) !std.ArrayList(std.ArrayList(u64)) {
+    var combos = std.ArrayList(std.ArrayList(u64)).init(allocator);
+    for (0..sequence.len) |i| {
+        const rem_items = sequence[i + 1 ..];
+        const item = sequence[i];
+        if (length > 1) {
+            const rem_combos = try combinations(allocator, rem_items, length - 1);
+            defer rem_combos.deinit();
+            for (0..rem_combos.items.len) |j| {
+                try rem_combos.items[j].append(item);
+                try combos.append(rem_combos.items[j]);
+            }
+        } else {
+            var new_combo = std.ArrayList(u64).init(allocator);
+            try new_combo.append(item);
+            try combos.append(new_combo);
+        }
+    }
+    return combos;
+}
+
+pub fn min_pressesv2(machine: Machine) !u64 {
+    for (1..machine.buttons.items.len) |presses| {
+        var combos = try combinations(machine.allocator, machine.buttons.items, presses);
+        defer {
+            for (0..combos.items.len) |i| {
+                combos.items[i].deinit();
+            }
+            combos.deinit();
+        }
+        //std.debug.print("Combos\n", .{});
+        for (combos.items) |c| {
+            var state: u64 = 0;
+            for (c.items) |b| {
+                //std.debug.print("{d} ", .{b});
+                state ^= b;
+            }
+            //std.debug.print("\n", .{});
+            if (state == machine.lights) {
+                return c.items.len;
+            }
+        }
+    }
+    return 100000;
+}
+
+pub fn min_presses(machine: Machine) !u64 {
+    var q = Queue.init(machine.allocator);
+    defer {
+        for (0..q.items.len) |i| {
+            q.items[i].buttons_left.deinit();
+        }
+        q.deinit();
+    }
+    const starting_buttons = try machine.buttons.clone();
+    try q.append(State{
+        .state = 0,
+        .buttons_left = starting_buttons,
+        .cost = 0,
+    });
+    var visited = std.AutoHashMap(u64, bool).init(machine.allocator);
+    defer visited.deinit();
+    while (q.items.len > 0) {
+        const s = q.orderedRemove(0);
+        defer s.buttons_left.deinit();
+        if (s.state == machine.lights) {
+            return s.cost;
+        }
+        try visited.put(s.state, true);
+        for (s.buttons_left.items) |b| {
+            const new_state = s.state ^ b;
+            if (visited.get(new_state) == null) {
+                var new_buttons = try s.buttons_left.clone();
+                for (0..new_buttons.items.len) |i| {
+                    if (new_buttons.items[i] == b) {
+                        _ = new_buttons.swapRemove(i);
+                        //std.debug.print("Removed {d}\n", .{i});
+                        break;
+                    }
+                }
+                try q.append(.{
+                    .state = new_state,
+                    .buttons_left = new_buttons,
+                    .cost = s.cost + 1,
+                });
+            }
+        }
+    }
+    return std.math.maxInt(u64);
+}
+
+pub fn day10_p2(self: anytype) !void {
     const f = try std.fs.cwd().openFile("inputs/day10/small.txt", .{});
     defer f.close();
     var buf: [65536]u8 = undefined;
+    var machines = std.ArrayList(MachineV2).init(self.allocator);
+    defer machines.deinit();
     while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |unfiltered| {
         var line = unfiltered;
         if (std.mem.indexOfScalar(u8, unfiltered, '\r')) |indx| {
             line = unfiltered[0..indx];
         }
         if (line.len == 0) break;
-    }
-}
-
-pub const State = struct {
-    state: []u8,
-    cost: usize,
-};
-
-pub const Queue = std.ArrayList(State);
-
-pub fn min_presses(machine: Machine) !usize {
-    var q = Queue.init(machine.allocator);
-    const start_state = try machine.allocator.alloc(u8, machine.lights.len);
-    defer {
-        for (q.items) |s| {
-            machine.allocator.free(s.state);
-        }
-        q.deinit();
-    }
-    @memset(start_state, '.');
-    try q.append(State{
-        .state = start_state,
-        .cost = 0,
-    });
-    var visited = std.BufMap.init(machine.allocator);
-    defer visited.deinit();
-    while (q.pop()) |s| {
-        if (std.mem.eql(u8, s.state, machine.lights)) {
-            machine.allocator.free(s.state);
-            return s.cost;
-        }
-        try visited.put(s.state, "");
-        for (machine.buttons.items) |b| {
-            var new_state = try machine.allocator.dupe(u8, s.state);
-            for (b.items) |i| {
-                if (new_state[i] == '.') {
-                    new_state[i] = '#';
-                } else {
-                    new_state[i] = '.';
-                }
+        var machine = MachineV2.init(self.allocator);
+        var curr_indx: usize = 0;
+        while (std.mem.indexOfScalarPos(u8, line, curr_indx, '(')) |bracket| {
+            const other_bracket = std.mem.indexOfScalarPos(u8, line, bracket, ')').?;
+            var iter = std.mem.splitScalar(u8, line[bracket + 1 .. other_bracket], ',');
+            var button = std.ArrayList(u64).init(self.allocator);
+            while (iter.next()) |n| {
+                try button.append(try std.fmt.parseInt(u64, n, 10));
             }
-            if (visited.get(new_state) == null) {
-                try q.insert(0, .{
-                    .state = new_state,
-                    .cost = s.cost + 1,
-                });
-            } else {
-                machine.allocator.free(new_state);
-            }
+            try machine.buttons.append(button);
+            curr_indx = other_bracket + 1;
         }
-        machine.allocator.free(s.state);
+
+        while (std.mem.indexOfScalarPos(u8, line, curr_indx, '{')) |bracket| {
+            const other_bracket = std.mem.indexOfScalarPos(u8, line, bracket, '}').?;
+            var iter = std.mem.splitScalar(u8, line[bracket + 1 .. other_bracket], ',');
+            while (iter.next()) |n| {
+                try machine.joltages.append(try std.fmt.parseInt(u64, n, 10));
+            }
+            curr_indx = other_bracket + 1;
+        }
+        try machines.append(machine);
     }
-    return std.math.maxInt(usize);
+    var fewest_presses: u64 = 0;
+    var j: usize = 0;
+    for (machines.items) |m| {
+        //std.debug.print("Machine {d}\n", .{j});
+        j += 1;
+        fewest_presses += try m.solve();
+    }
+    for (0..machines.items.len) |i| {
+        machines.items[i].deinit();
+    }
+    std.debug.print("Fewest possible presses: {d}\n", .{fewest_presses});
 }
 
 pub fn day10_p1(self: anytype) !void {
@@ -151,39 +411,40 @@ pub fn day10_p1(self: anytype) !void {
         const start_light = std.mem.indexOfScalar(u8, line, '[') orelse continue;
         const end_light = std.mem.indexOfScalar(u8, line, ']') orelse continue;
         var machine = Machine.init(self.allocator);
-        machine.lights = try self.allocator.alloc(u8, end_light - start_light - 1);
-        @memcpy(machine.lights, line[start_light + 1 .. end_light]);
+        const lights = line[start_light + 1 .. end_light];
+        var light: u64 = 0;
+        var offset: u64 = 1;
+        for (lights) |l| {
+            if (l == '#') {
+                light |= offset;
+            }
+            offset <<= 1;
+        }
+        machine.lights = light;
         var curr_indx = end_light + 1;
         while (std.mem.indexOfScalarPos(u8, line, curr_indx, '(')) |bracket| {
             const other_bracket = std.mem.indexOfScalarPos(u8, line, bracket, ')').?;
             var iter = std.mem.splitScalar(u8, line[bracket + 1 .. other_bracket], ',');
-            var button = std.ArrayList(usize).init(self.allocator);
+            var button: u64 = 0;
             while (iter.next()) |n| {
-                try button.append(try std.fmt.parseInt(usize, n, 10));
+                button |= @as(u64, 1) << (try std.fmt.parseInt(u6, n, 10));
             }
             try machine.buttons.append(button);
             curr_indx = other_bracket + 1;
         }
 
-        while (std.mem.indexOfScalarPos(u8, line, curr_indx, '{')) |bracket| {
-            const other_bracket = std.mem.indexOfScalarPos(u8, line, bracket, '}').?;
-            var iter = std.mem.splitScalar(u8, line[bracket + 1 .. other_bracket], ',');
-            while (iter.next()) |n| {
-                try machine.joltages.append(try std.fmt.parseInt(usize, n, 10));
-            }
-            curr_indx = other_bracket + 1;
-        }
         try machines.append(machine);
     }
-    var fewest_presses: usize = 0;
+    var fewest_presses: u64 = 0;
     var j: usize = 0;
+    try common.timer_start();
     for (machines.items) |m| {
-        std.debug.print("Machine {d}\n", .{j});
+        //std.debug.print("Machine {d}\n", .{j});
         j += 1;
-        fewest_presses += try min_presses(m);
+        fewest_presses += try min_pressesv2(m);
     }
     for (0..machines.items.len) |i| {
         machines.items[i].deinit();
     }
-    std.debug.print("Fewest possible presses: {d}\n", .{fewest_presses});
+    std.debug.print("Fewest possible presses: {d}\nIn {d} seconds.\n", .{ fewest_presses, common.timer_end() });
 }
