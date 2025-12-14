@@ -130,6 +130,7 @@ pub fn connect_points_p1(distances: std.ArrayList(Distance), circuits: *Circuits
         //std.debug.print("{d} Counts {any}\n", .{ c.items.len, counts });
         ordered_count_insert(&counts, c.items.len);
     }
+    std.debug.print("{d}, {d}, {d}\n", .{ counts[0], counts[1], counts[2] });
     return counts[0] * counts[1] * counts[2];
 }
 
@@ -199,6 +200,10 @@ pub fn day8_p2(self: anytype) !void {
     //     std.debug.print("({d},{d},{d}) ({d},{d},{d}) = {d}\n", .{ d.p1.x, d.p1.y, d.p1.z, d.p2.x, d.p2.y, d.p2.z, d.magnitude });
     // }
     const ans = try connect_points_p2(distances, &circuits, points.items.len);
+    // std.debug.print("Points\n", .{});
+    // for (points.items) |p| {
+    //     std.debug.print("({d},{d},{d}) Circuit: {d} \n", .{ p.x, p.y, p.z, p.circuit });
+    // }
     std.debug.print("Need extension cable of {d}\n", .{ans});
     var iter = circuits.iterator();
     while (iter.next()) |i| {
@@ -251,6 +256,10 @@ pub fn day8_p1(self: anytype) !void {
     //     std.debug.print("({d},{d},{d}) ({d},{d},{d}) = {d}\n", .{ d.p1.x, d.p1.y, d.p1.z, d.p2.x, d.p2.y, d.p2.z, d.magnitude });
     // }
     const ans = try connect_points_p1(distances, &circuits, num_connections);
+    // std.debug.print("Points\n", .{});
+    // for (points.items) |p| {
+    //     std.debug.print("({d},{d},{d}) Circuit: {d} \n", .{ p.x, p.y, p.z, p.circuit });
+    // }
     std.debug.print("Three largest multiplied together {d}\n", .{ans});
     var iter = circuits.iterator();
     while (iter.next()) |i| {

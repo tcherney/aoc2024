@@ -55,9 +55,9 @@ pub const Machine = struct {
 
     pub fn init(allocator: std.mem.Allocator) Machine {
         return .{
-            .lights = std.ArrayList(u8).init(allocator),
+            .lights = "",
             .buttons = std.ArrayList(std.ArrayList(usize)).init(allocator),
-            .joltages = std.ArrayList(usize),
+            .joltages = std.ArrayList(usize).init(allocator),
             .allocator = allocator,
         };
     }
@@ -84,19 +84,37 @@ pub fn day10_p2(_: anytype) !void {
     }
 }
 
-var dp: common.StringKeyMap(usize) = undefined;
-//TODO sounds like we can do a DP with input state storing min presses
-pub fn min_presses(machine: Machine, state: []u8) !usize {
-    const e = try dp.getOrPut(state);
-    if (e.found_existing) return e.value_ptr.*;
-    if (std.mem.eql(u8, machine.lights, state)) {
-        e.value_ptr.* = 0;
-    } else {
-        //TODO prob have to alloc state for each button press, try each button and recurse
-        var min_val: usize = std.math.maxInt(usize);
+pub const State = struct {
+    state: []u8,
+    cost: usize,
+};
+
+pub const Queue = std.ArrayList(State);
+
+pub fn min_presses(machine: Machine) !usize {
+    var q = Queue.init(machine.allocator);
+    const start_state = try machine.allocator.alloc(u8, machine.lights.len);
+    defer {
+        for (q.items) |s| {
+            machine.allocator.free(s.state);
+        }
+        q.deinit();
+    }
+    @memset(start_state, '.');
+    try q.append(State{
+        .state = start_state,
+        .cost = 0,
+    });
+    var visited = std.BufMap.init(machine.allocator);
+    defer visited.deinit();
+    while (q.pop()) |s| {
+        if (std.mem.eql(u8, s.state, machine.lights)) {
+            machine.allocator.free(s.state);
+            return s.cost;
+        }
+        try visited.put(s.state, "");
         for (machine.buttons.items) |b| {
-            var new_state = try machine.allocator.dupe(u8, state);
-            defer machine.allocator.free(new_state);
+            var new_state = try machine.allocator.dupe(u8, s.state);
             for (b.items) |i| {
                 if (new_state[i] == '.') {
                     new_state[i] = '#';
@@ -104,21 +122,26 @@ pub fn min_presses(machine: Machine, state: []u8) !usize {
                     new_state[i] = '.';
                 }
             }
-            min_val = @min(min_val, 1 + try min_presses(machine, new_state));
+            if (visited.get(new_state) == null) {
+                try q.insert(0, .{
+                    .state = new_state,
+                    .cost = s.cost + 1,
+                });
+            } else {
+                machine.allocator.free(new_state);
+            }
         }
-        e.value_ptr.* = min_val;
+        machine.allocator.free(s.state);
     }
-    return e.value_ptr.*;
+    return std.math.maxInt(usize);
 }
 
 pub fn day10_p1(self: anytype) !void {
-    const f = try std.fs.cwd().openFile("inputs/day10/small.txt", .{});
+    const f = try std.fs.cwd().openFile("inputs/day10/input.txt", .{});
     defer f.close();
     var buf: [65536]u8 = undefined;
     var machines = std.ArrayList(Machine).init(self.allocator);
     defer machines.deinit();
-    dp = common.StringKeyMap(usize).init(self.allocator);
-    defer dp.deinit();
     while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |unfiltered| {
         var line = unfiltered;
         if (std.mem.indexOfScalar(u8, unfiltered, '\r')) |indx| {
@@ -128,7 +151,7 @@ pub fn day10_p1(self: anytype) !void {
         const start_light = std.mem.indexOfScalar(u8, line, '[') orelse continue;
         const end_light = std.mem.indexOfScalar(u8, line, ']') orelse continue;
         var machine = Machine.init(self.allocator);
-        machine.lights = self.allocator.alloc(u8, end_light - start_light + 1);
+        machine.lights = try self.allocator.alloc(u8, end_light - start_light - 1);
         @memcpy(machine.lights, line[start_light + 1 .. end_light]);
         var curr_indx = end_light + 1;
         while (std.mem.indexOfScalarPos(u8, line, curr_indx, '(')) |bracket| {
@@ -136,7 +159,7 @@ pub fn day10_p1(self: anytype) !void {
             var iter = std.mem.splitScalar(u8, line[bracket + 1 .. other_bracket], ',');
             var button = std.ArrayList(usize).init(self.allocator);
             while (iter.next()) |n| {
-                try button.append(std.fmt.parseInt(usize, n, 10));
+                try button.append(try std.fmt.parseInt(usize, n, 10));
             }
             try machine.buttons.append(button);
             curr_indx = other_bracket + 1;
@@ -146,18 +169,21 @@ pub fn day10_p1(self: anytype) !void {
             const other_bracket = std.mem.indexOfScalarPos(u8, line, bracket, '}').?;
             var iter = std.mem.splitScalar(u8, line[bracket + 1 .. other_bracket], ',');
             while (iter.next()) |n| {
-                try machine.joltages.append(std.fmt.parseInt(usize, n, 10));
+                try machine.joltages.append(try std.fmt.parseInt(usize, n, 10));
             }
             curr_indx = other_bracket + 1;
         }
         try machines.append(machine);
     }
     var fewest_presses: usize = 0;
+    var j: usize = 0;
     for (machines.items) |m| {
-        var state = self.allocator.alloc(u8, m.lights.len);
-        defer self.allocator.free(state);
-        @memset(state, '.');
-        fewest_presses += try min_presses(m, &state);
+        std.debug.print("Machine {d}\n", .{j});
+        j += 1;
+        fewest_presses += try min_presses(m);
+    }
+    for (0..machines.items.len) |i| {
+        machines.items[i].deinit();
     }
     std.debug.print("Fewest possible presses: {d}\n", .{fewest_presses});
 }

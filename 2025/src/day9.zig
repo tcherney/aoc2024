@@ -272,11 +272,11 @@ pub fn on_render(self: anytype, _: u64) void {
             const p_start = if (l.p1.x < l.p2.x) l.p1 else l.p2;
             const p_end = if (l.p1.x < l.p2.x) l.p2 else l.p1;
             var x = p_start.x + 1;
-            std.debug.print("start x,y ({d},{d})\n", .{ p_start.x, p_start.y });
-            std.debug.print("end x,y ({d},{d})\n", .{ p_end.x, p_end.y });
+            //std.debug.print("start x,y ({d},{d})\n", .{ p_start.x, p_start.y });
+            //std.debug.print("end x,y ({d},{d})\n", .{ p_end.x, p_end.y });
             while (x < p_end.x) : (x += 1) {
                 const y = @divFloor((p_start.y * (p_end.x - x) + p_end.y * (x - p_start.x)), (p_end.x - p_start.x));
-                std.debug.print("Green x,y ({d},{d})\n", .{ x, y });
+                //std.debug.print("Green x,y ({d},{d})\n", .{ x, y });
                 self.e.renderer.ascii.draw_symbol(@intFromFloat(x), @intFromFloat(y), 'X', common.Colors.GREEN, self.window);
             }
         }

@@ -103,6 +103,7 @@ pub const Game = struct {
     }
     var scratch_buffer: [32]u8 = undefined;
     pub fn on_render(self: *Self, dt: u64) !void {
+        if (!day9.part2) return;
         self.e.renderer.ascii.set_bg(0, 0, 0, self.window);
         for (0..self.window.ascii_buffer.len) |i| {
             self.window.ascii_buffer[i] = ' ';
@@ -131,12 +132,29 @@ pub const Game = struct {
     pub fn update(_: *Self) !void {}
 
     pub fn run(self: *Self) !void {
+        //try day1.day1(self);
+        //try day2.day2_p1(self);
+        //try day2.day2_p2(self);
+        //try day3.day3_p2(self);
+        //try day4.day4_p1(self);
+        //try day4.day4_p2(self);
+        //try day5.day5_p1(self);
+        //try day5.day5_p2(self);
+        //try day6.day6_p1(self);
+        //try day6.day6_p2(self);
+        //try day7.day7_p1(self);
+        //try day7.day7_p2(self);
+        //try day8.day8_p1(self);
+        //try day8.day8_p2(self);
+        //try day9.day9_p1(self);
+
+        try day10.day10_p1(self);
         self.lock = std.Thread.Mutex{};
         engine.set_wasm_terminal_size(35, 150);
         self.e = try Engine.init(self.allocator, TERMINAL_WIDTH_OFFSET, TERMINAL_HEIGHT_OFFSET, .ascii, ._2d, .color_true, if (builtin.os.tag == .emscripten) .wasm else .native, if (builtin.os.tag == .emscripten) .single else .multi);
         GAME_LOG.info("starting height {d}\n", .{self.e.renderer.ascii.terminal.size.height});
         self.window.is_ascii = true;
-        //try self.window.rect(@intCast(self.e.renderer.ascii.terminal.size.width), @intCast(self.e.renderer.ascii.terminal.size.height), 0, 0, 0, 255);
+        try self.window.rect(@intCast(self.e.renderer.ascii.terminal.size.width), @intCast(self.e.renderer.ascii.terminal.size.height), 0, 0, 0, 255);
         self.viewport = common.Rectangle{
             .x = 0,
             .y = 0,
@@ -152,24 +170,8 @@ pub const Game = struct {
         try self.tui.add_button(self.e.renderer.ascii.terminal.size.width / 2, self.e.renderer.ascii.terminal.size.height / 2, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, "Pause", .pause);
         self.e.set_fps(60);
         try common.gen_rand();
-
-        //try day1.day1(self);
-        //try day2.day2_p1(self);
-        //try day2.day2_p2(self);
-        //try day3.day3_p2(self);
-        //try day4.day4_p1(self);
-        //try day4.day4_p2(self);
-        //try day5.day5_p1(self);
-        //try day5.day5_p2(self);
-        //try day6.day6_p1(self);
-        //try day6.day6_p2(self);
-        //try day7.day7_p1(self);
-        //try day7.day7_p2(self);
-        // try day8.day8_p1(self);
-        // try day8.day8_p2(self);
-        //try day9.day9_p1(self);
-        try day9.day9_p2(self);
-
+        // try day9.day9_p2(self);
+        // if (day9.part2) return;
         self.state = .game;
         try self.e.start();
 
