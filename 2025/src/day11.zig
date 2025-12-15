@@ -36,6 +36,40 @@
 
 // How many different paths lead from you to out?
 
+// --- Part Two ---
+// Thanks in part to your analysis, the Elves have figured out a little bit about the issue. They now know that the problematic data path passes through both dac (a digital-to-analog converter) and fft (a device which performs a fast Fourier transform).
+
+// They're still not sure which specific path is the problem, and so they now need you to find every path from svr (the server rack) to out. However, the paths you find must all also visit both dac and fft (in any order).
+
+// For example:
+
+// svr: aaa bbb
+// aaa: fft
+// fft: ccc
+// bbb: tty
+// tty: ccc
+// ccc: ddd eee
+// ddd: hub
+// hub: fff
+// eee: dac
+// dac: fff
+// fff: ggg hhh
+// ggg: out
+// hhh: out
+// This new list of devices contains many paths from svr to out:
+
+// svr,aaa,fft,ccc,ddd,hub,fff,ggg,out
+// svr,aaa,fft,ccc,ddd,hub,fff,hhh,out
+// svr,aaa,fft,ccc,eee,dac,fff,ggg,out
+// svr,aaa,fft,ccc,eee,dac,fff,hhh,out
+// svr,bbb,tty,ccc,ddd,hub,fff,ggg,out
+// svr,bbb,tty,ccc,ddd,hub,fff,hhh,out
+// svr,bbb,tty,ccc,eee,dac,fff,ggg,out
+// svr,bbb,tty,ccc,eee,dac,fff,hhh,out
+// However, only 2 paths from svr to out visit both dac and fft.
+
+// Find all of the paths that lead from svr to out. How many of those paths visit both dac and fft?
+
 const std = @import("std");
 const common = @import("common");
 
@@ -50,16 +84,22 @@ pub const Edge = struct {
     end: usize,
 };
 
+pub const DPKey = struct {
+    node: *Node,
+    fft: bool,
+    dac: bool,
+};
+
 pub const Graph = struct {
     nodes: std.ArrayList(Node),
     allocator: std.mem.Allocator,
-    dp: std.AutoHashMap(*Node, usize),
+    dp: std.AutoHashMap(DPKey, usize),
 
     pub fn init(allocator: std.mem.Allocator) Graph {
         return .{
             .nodes = std.ArrayList(Node).init(allocator),
             .allocator = allocator,
-            .dp = std.AutoHashMap(*Node, usize).init(allocator),
+            .dp = std.AutoHashMap(DPKey, usize).init(allocator),
         };
     }
 
@@ -90,6 +130,48 @@ pub const Graph = struct {
                 }
             }
             std.debug.print("\n", .{});
+        }
+    }
+    pub fn compute_pathsv2(self: *Graph, node: *Node, end: *Node) !usize {
+        return try self.compute_paths_visited(node, end, false, false);
+    }
+
+    pub fn compute_paths_visited(self: *Graph, node: *Node, end: *Node, fft: bool, dac: bool) !usize {
+        if (node.indx == end.indx) {
+            if (fft and dac) {
+                return 1;
+            } else {
+                return 0;
+            }
+        } else {
+            const key = DPKey{
+                .node = node,
+                .fft = fft,
+                .dac = dac,
+            };
+            const e = self.dp.get(key);
+            if (e) |val| {
+                return val;
+            }
+            var num_paths: usize = 0;
+            for (0..node.edges.items.len) |i| {
+                //std.debug.print("Node {s} {s} {s}\n", .{ node.name, self.nodes.items[node.edges.items[i].start].name, self.nodes.items[node.edges.items[i].end].name });
+                if (node.indx == node.edges.items[i].start) {
+                    //std.debug.print("Path from {s} to {s}\n", .{ node.name, node.edges.items[i].end.name });
+                    //std.debug.print("Leaving {s}\n", .{node.name});
+                    var new_fft = fft;
+                    var new_dac = dac;
+                    if (std.mem.eql(u8, node.name, "fft")) {
+                        new_fft = true;
+                    } else if (std.mem.eql(u8, node.name, "dac")) {
+                        new_dac = true;
+                    }
+                    num_paths += try self.compute_paths_visited(&self.nodes.items[node.edges.items[i].end], end, new_fft, new_dac);
+                }
+            }
+            //std.debug.print("Num path {d}\n", .{num_paths});
+            try self.dp.put(key, num_paths);
+            return num_paths;
         }
     }
 
@@ -160,17 +242,31 @@ pub const Graph = struct {
     }
 };
 
-pub fn day11_p2(_: anytype) !void {
-    const f = try std.fs.cwd().openFile("inputs/day11/small.txt", .{});
+pub fn day11_p2(self: anytype) !void {
+    const f = try std.fs.cwd().openFile("inputs/day11/input.txt", .{});
     defer f.close();
     var buf: [65536]u8 = undefined;
+    var graph = Graph.init(self.allocator);
+    defer graph.deinit();
     while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |unfiltered| {
         var line = unfiltered;
         if (std.mem.indexOfScalar(u8, unfiltered, '\r')) |indx| {
             line = unfiltered[0..indx];
         }
         if (line.len == 0) break;
+
+        const start_node = line[0..std.mem.indexOfScalar(u8, line, ':').?];
+        var iter = std.mem.splitScalar(u8, line, ' ');
+        _ = iter.next();
+        //std.debug.print("start: {s}\n", .{start_node});
+        while (iter.next()) |end_node| {
+            //std.debug.print("end: {s}\n", .{end_node});
+            try graph.add_edge(start_node, end_node);
+        }
     }
+    graph.print();
+    try common.timer_start();
+    std.debug.print("{d} paths in {d} seconds.\n", .{ try graph.compute_pathsv2(graph.find_node("svr").?, graph.find_node("out").?), common.timer_end() });
 }
 
 pub fn day11_p1(self: anytype) !void {
