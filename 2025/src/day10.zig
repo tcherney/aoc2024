@@ -99,116 +99,7 @@ pub const MachineV2 = struct {
         }
     }
 
-    pub fn solve(self: *const MachineV2) !u64 {
-        const cols = self.buttons.items.len + 1;
-        const rows = self.joltages.items.len;
-        var mat = try self.allocator.alloc([]f64, rows);
-        defer self.allocator.free(mat);
-        for (0..rows) |r| {
-            mat[r] = try self.allocator.alloc(f64, cols);
-            for (0..cols) |c| {
-                if (c == cols - 1) {
-                    mat[r][c] = @floatFromInt(self.joltages.items[r]);
-                } else if (find(self.buttons.items[c], r)) {
-                    mat[r][c] = 1;
-                } else {
-                    mat[r][c] = 0;
-                }
-                std.debug.print("{d}", .{mat[r][c]});
-            }
-            std.debug.print("\n", .{});
-        }
-        for (0..rows) |r| {
-            var before: bool = false;
-            for (0..cols) |c| {
-                if (c == cols - 1) {
-                    std.debug.print("= {d} ", .{mat[r][c]});
-                } else if (mat[r][c] == 1) {
-                    if (before) {
-                        std.debug.print("+ x{d} ", .{c});
-                    } else {
-                        std.debug.print("x{d} ", .{c});
-                        before = true;
-                    }
-                }
-            }
-            std.debug.print("\n", .{});
-        }
-        // ---------
-        for (0..@min(cols, rows)) |k| {
-            var i_max: usize = k;
-            var v_max = mat[i_max][k];
-            for (k + 1..rows) |i| {
-                if (@abs(mat[i][k]) > v_max) {
-                    v_max = mat[i][k];
-                    i_max = i;
-                }
-            }
-            if (i_max != k) {
-                for (0..cols) |c| {
-                    const temp = mat[k][c];
-                    mat[k][c] = mat[i_max][c];
-                    mat[i_max][c] = temp;
-                }
-            }
-            for (k + 1..rows) |l| {
-                const f = mat[l][k] / mat[k][k];
-                for (k + 1..cols) |j| {
-                    mat[l][j] -= mat[k][j] * f;
-                }
-                mat[l][k] = 0;
-            }
-        }
-        std.debug.print("------------\n", .{});
-        for (0..rows) |r| {
-            for (0..cols) |c| {
-                std.debug.print("{d}", .{mat[r][c]});
-            }
-            std.debug.print("\n", .{});
-        }
-
-        var x = try self.allocator.alloc(f64, cols);
-        @memset(x, 0);
-        defer self.allocator.free(x);
-        var i: usize = rows - 1;
-        while (i >= 0) : (i -= 1) {
-            if (i + 1 < cols) {
-                x[i] = mat[i][cols - 1];
-                for (i + 1..cols) |j| {
-                    x[i] -= mat[i][j] * x[j];
-                }
-                x[i] = x[i] / mat[i][i];
-            }
-            if (i == 0) break;
-        }
-
-        // for (0..rows) |i| {
-        //     if (mat[i][i] == 0) {
-        //         var c: usize = 1;
-        //         while ((i + c) < rows and mat[i + c][i] == 0) {
-        //             c += 1;
-        //         }
-        //         if ((i + c) == rows) {
-        //             break;
-        //         }
-        //         const j = i;
-        //         for (0..cols) |k| {
-        //             const temp = mat[j][k];
-        //             mat[j][k] = mat[j + c][k];
-        //             mat[j + c][k] = temp;
-        //         }
-        //     }
-        //     for (0..rows) |j| {
-        //         if (i != j) {
-        //             const p = mat[j][i] / mat[i][i];
-        //             for (0..cols) |k| {
-        //                 mat[j][k] = mat[j][k] - mat[i][k] * p;
-        //             }
-        //         }
-        //     }
-        // }
-        // ---------------
-        std.debug.print("------------\n", .{});
+    pub fn print(mat: [][]i128, rows: usize, cols: usize) void {
         for (0..rows) |r| {
             for (0..cols) |c| {
                 std.debug.print("{d}", .{mat[r][c]});
@@ -228,7 +119,7 @@ pub const MachineV2 = struct {
                             } else {
                                 std.debug.print("+", .{});
                             }
-                            std.debug.print(" {d}x{d} ", .{ mat[r][c], c });
+                            std.debug.print(" {d}x{d} ", .{ @abs(mat[r][c]), c });
                         } else {
                             std.debug.print("+ x{d} ", .{c});
                         }
@@ -243,9 +134,151 @@ pub const MachineV2 = struct {
                 }
             }
             std.debug.print("\n", .{});
+        }
+    }
+
+    pub fn solve(self: *const MachineV2) !u64 {
+        const cols = self.buttons.items.len + 1;
+        const rows = self.joltages.items.len;
+        var mat = try self.allocator.alloc([]i128, rows);
+        defer self.allocator.free(mat);
+        for (0..rows) |r| {
+            mat[r] = try self.allocator.alloc(i128, cols);
+            for (0..cols) |c| {
+                if (c == cols - 1) {
+                    mat[r][c] = @intCast(@as(i64, @bitCast(self.joltages.items[r])));
+                } else if (find(self.buttons.items[c], r)) {
+                    mat[r][c] = 1;
+                } else {
+                    mat[r][c] = 0;
+                }
+            }
+        }
+        // std.debug.print("------------\n", .{});
+        // print(mat, rows, cols);
+        // std.debug.print("------------\n", .{});
+        // ---------
+        var curr_row: usize = 0;
+        var free_vars = std.ArrayList(usize).init(self.allocator);
+        defer free_vars.deinit();
+        for (0..cols - 1) |curr_col| {
+            var found_pivot: bool = false;
+            var pivor_row_index: usize = 0;
+            for (curr_row..rows) |r| {
+                if (mat[r][curr_col] != 0) {
+                    pivor_row_index = r;
+                    found_pivot = true;
+                    break;
+                }
+            }
+            if (!found_pivot) {
+                try free_vars.append(curr_col);
+                continue;
+            }
+            for (0..cols) |k| {
+                const temp = mat[curr_row][k];
+                mat[curr_row][k] = mat[pivor_row_index][k];
+                mat[pivor_row_index][k] = temp;
+            }
+            const pivot_row = mat[curr_row];
+            const pivot = pivot_row[curr_col];
+            for (0..rows) |r| {
+                if (r == curr_row) continue;
+                const coeff = mat[r][curr_col];
+                for (0..cols) |c| {
+                    mat[r][c] = (mat[r][c] * pivot) - pivot_row[c] * coeff;
+                }
+            }
+            curr_row += 1;
+        }
+        // print(mat, rows, cols);
+        // std.debug.print("------------\n", .{});
+        // std.debug.print("Free vars: {any}\n", .{free_vars.items});
+
+        var min_val: ?u64 = null;
+        var max_joltage: u64 = 0;
+        for (0..self.joltages.items.len) |i| {
+            max_joltage = @max(max_joltage, self.joltages.items[i]);
+        }
+        var assignment_ranges = std.ArrayList(std.ArrayList(u64)).init(self.allocator);
+        defer {
+            for (0..assignment_ranges.items.len) |i| {
+                assignment_ranges.items[i].deinit();
+            }
+            assignment_ranges.deinit();
+        }
+        //std.debug.print("Assignment range\n", .{});
+        for (0..free_vars.items.len) |_| {
+            var assignments = std.ArrayList(u64).init(self.allocator);
+            var jolt: u64 = 0;
+            while (jolt <= max_joltage) : (jolt += 1) {
+                try assignments.append(@intCast(jolt));
+            }
+            //std.debug.print("{any}\n", .{assignments.items});
+            try assignment_ranges.append(assignments);
+        }
+        var prod = try product(self.allocator, &assignment_ranges);
+        defer {
+            for (0..prod.items.len) |i| {
+                prod.items[i].deinit();
+            }
+            prod.deinit();
+        }
+        // for (0..prod.items.len) |i| {
+        //     for (0..prod.items[i].items.len) |j| {
+        //         std.debug.print("{d} ", .{prod.items[i].items[j]});
+        //     }
+        //     std.debug.print("\n", .{});
+        // }
+        for (prod.items) |free_var_values| {
+            var num_presses: u64 = sum(u64, free_var_values.items);
+            // std.debug.print("Free var values {any}\nPresses {d}\n", .{ free_var_values.items, num_presses });
+            if (min_val != null and num_presses >= min_val.?) {
+                continue;
+            }
+            var new_min: bool = true;
+            for (mat) |row| {
+                const pivot: ?i128 = blk: {
+                    for (0..row.len - 1) |i| {
+                        if (row[i] != 0) {
+                            break :blk row[i];
+                        }
+                    }
+                    break :blk null;
+                };
+                if (pivot == null) {
+                    continue;
+                }
+                // std.debug.print("Found pivot\n", .{});
+                var row_presses = row[row.len - 1];
+                for (0..free_var_values.items.len) |i| {
+                    const index = free_vars.items[i];
+                    const value = free_var_values.items[i];
+                    row_presses -= row[index] * @as(i128, @intCast(@as(i64, @bitCast(value))));
+                }
+                const remainder = @mod(row_presses, pivot.?);
+                row_presses = @divFloor(row_presses, pivot.?);
+                // std.debug.print("remain {d}, row_presses {d}\n", .{ remainder, row_presses });
+                if (remainder != 0 or row_presses < 0) {
+                    new_min = false;
+                    break;
+                }
+                num_presses += @intCast(@as(u128, @bitCast(row_presses)));
+                if (min_val != null and num_presses >= min_val.?) {
+                    new_min = false;
+                    break;
+                }
+            }
+            if (new_min) {
+                //std.debug.print("new_min {d}\n", .{num_presses});
+                min_val = num_presses;
+            }
+        }
+
+        for (0..rows) |r| {
             defer self.allocator.free(mat[r]);
         }
-        return 0;
+        return min_val.?;
     }
 };
 
@@ -256,6 +289,16 @@ pub const State = struct {
 };
 
 pub const Queue = std.ArrayList(State);
+
+//TODO extract out these 3 functions into common lib and make them more generic
+
+pub fn sum(T: type, sequence: []T) T {
+    var ret: T = 0;
+    for (sequence) |i| {
+        ret += i;
+    }
+    return ret;
+}
 
 pub fn combinations(allocator: std.mem.Allocator, sequence: []u64, length: usize) !std.ArrayList(std.ArrayList(u64)) {
     var combos = std.ArrayList(std.ArrayList(u64)).init(allocator);
@@ -274,6 +317,28 @@ pub fn combinations(allocator: std.mem.Allocator, sequence: []u64, length: usize
             try new_combo.append(item);
             try combos.append(new_combo);
         }
+    }
+    return combos;
+}
+
+pub fn product(allocator: std.mem.Allocator, lists: *std.ArrayList(std.ArrayList(u64))) !std.ArrayList(std.ArrayList(u64)) {
+    var combos = std.ArrayList(std.ArrayList(u64)).init(allocator);
+    if (lists.items.len == 0) {
+        try combos.append(std.ArrayList(u64).init(allocator));
+        return combos;
+    } else {
+        const first_list = lists.pop().?;
+        const remaining = try product(allocator, lists);
+        defer remaining.deinit();
+        for (first_list.items) |i| {
+            for (remaining.items) |r| {
+                var result_list = std.ArrayList(u64).init(allocator);
+                try result_list.append(i);
+                try result_list.appendSlice(r.items);
+                try combos.append(result_list);
+            }
+        }
+        first_list.deinit();
     }
     return combos;
 }
@@ -348,8 +413,9 @@ pub fn min_presses(machine: Machine) !u64 {
     return std.math.maxInt(u64);
 }
 
+//TODO use fast method similar to part 1 https://www.reddit.com/r/adventofcode/comments/1pk87hl/comment/ntp4njq/
 pub fn day10_p2(self: anytype) !void {
-    const f = try std.fs.cwd().openFile("inputs/day10/small.txt", .{});
+    const f = try std.fs.cwd().openFile("inputs/day10/input.txt", .{});
     defer f.close();
     var buf: [65536]u8 = undefined;
     var machines = std.ArrayList(MachineV2).init(self.allocator);
@@ -385,6 +451,7 @@ pub fn day10_p2(self: anytype) !void {
     }
     var fewest_presses: u64 = 0;
     var j: usize = 0;
+    try common.timer_start();
     for (machines.items) |m| {
         //std.debug.print("Machine {d}\n", .{j});
         j += 1;
@@ -393,7 +460,7 @@ pub fn day10_p2(self: anytype) !void {
     for (0..machines.items.len) |i| {
         machines.items[i].deinit();
     }
-    std.debug.print("Fewest possible presses: {d}\n", .{fewest_presses});
+    std.debug.print("Fewest possible presses: {d}\nIn {d} seconds.\n", .{ fewest_presses, common.timer_end() });
 }
 
 pub fn day10_p1(self: anytype) !void {

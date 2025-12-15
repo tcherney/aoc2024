@@ -37,6 +37,128 @@
 // How many different paths lead from you to out?
 
 const std = @import("std");
+const common = @import("common");
+
+pub const Node = struct {
+    name: []u8,
+    indx: usize,
+    edges: std.ArrayList(Edge),
+};
+
+pub const Edge = struct {
+    start: usize,
+    end: usize,
+};
+
+pub const Graph = struct {
+    nodes: std.ArrayList(Node),
+    allocator: std.mem.Allocator,
+    dp: std.AutoHashMap(*Node, usize),
+
+    pub fn init(allocator: std.mem.Allocator) Graph {
+        return .{
+            .nodes = std.ArrayList(Node).init(allocator),
+            .allocator = allocator,
+            .dp = std.AutoHashMap(*Node, usize).init(allocator),
+        };
+    }
+
+    pub fn deinit(self: *Graph) void {
+        for (0..self.nodes.items.len) |i| {
+            self.allocator.free(self.nodes.items[i].name);
+            self.nodes.items[i].edges.deinit();
+        }
+        self.nodes.deinit();
+        self.dp.deinit();
+    }
+
+    pub fn find_node(self: *Graph, name: []const u8) ?*Node {
+        for (0..self.nodes.items.len) |i| {
+            if (std.mem.eql(u8, name, self.nodes.items[i].name)) {
+                return &self.nodes.items[i];
+            }
+        }
+        return null;
+    }
+
+    pub fn print(self: *Graph) void {
+        for (self.nodes.items) |node| {
+            std.debug.print("{s}:", .{node.name});
+            for (node.edges.items) |e| {
+                if (node.indx == e.start) {
+                    std.debug.print(" {s}", .{self.nodes.items[e.end].name});
+                }
+            }
+            std.debug.print("\n", .{});
+        }
+    }
+
+    pub fn compute_paths(self: *Graph, node: *Node, end: *Node) !usize {
+        if (node.indx == end.indx) {
+            return 1;
+        } else {
+            const e = self.dp.get(node);
+            if (e) |val| {
+                return val;
+            }
+            var num_paths: usize = 0;
+            for (0..node.edges.items.len) |i| {
+                //std.debug.print("Node {s} {any}\n", .{ node.name, node.edges.items[i] });
+                if (node.indx == node.edges.items[i].start) {
+                    //std.debug.print("Path from {s} to {s}\n", .{ node.name, node.edges.items[i].end.name });
+                    num_paths += try self.compute_paths(&self.nodes.items[node.edges.items[i].end], end);
+                }
+            }
+            //std.debug.print("Num path {d}\n", .{num_paths});
+            try self.dp.put(node, num_paths);
+            return num_paths;
+        }
+    }
+
+    pub fn add_edge(self: *Graph, start: []const u8, end: []const u8) !void {
+        //std.debug.print("Pre {s}, {s}\n", .{ start, end });
+        const start_node = blk: {
+            for (0..self.nodes.items.len) |i| {
+                if (std.mem.eql(u8, self.nodes.items[i].name, start)) {
+                    //std.debug.print("Found {s}\n{any}\n", .{ start, self.nodes.items[i] });
+                    break :blk i;
+                }
+            } else {
+                try self.nodes.append(.{
+                    .name = try self.allocator.dupe(u8, start),
+                    .edges = std.ArrayList(Edge).init(self.allocator),
+                    .indx = self.nodes.items.len,
+                });
+                break :blk (self.nodes.items.len - 1);
+            }
+        };
+        //std.debug.print("Post 1\n", .{});
+        const end_node = blk: {
+            for (0..self.nodes.items.len) |i| {
+                if (std.mem.eql(u8, self.nodes.items[i].name, end)) {
+                    break :blk i;
+                }
+            } else {
+                try self.nodes.append(.{
+                    .name = try self.allocator.dupe(u8, end),
+                    .edges = std.ArrayList(Edge).init(self.allocator),
+                    .indx = self.nodes.items.len,
+                });
+                break :blk (self.nodes.items.len - 1);
+            }
+        };
+        //std.debug.print("Post 2\n {d}, {d}\n", .{ start_node, end_node });
+        //std.debug.print("{s} {any}\n{s} {any}\n", .{ start_entry.key_ptr.*, start_entry.value_ptr.*.edges.items, end_entry.key_ptr.*, end_entry.value_ptr.*.edges.items });
+        try self.nodes.items[start_node].edges.append(Edge{
+            .start = start_node,
+            .end = end_node,
+        });
+        try self.nodes.items[end_node].edges.append(Edge{
+            .start = start_node,
+            .end = end_node,
+        });
+    }
+};
 
 pub fn day11_p2(_: anytype) !void {
     const f = try std.fs.cwd().openFile("inputs/day11/small.txt", .{});
@@ -51,15 +173,29 @@ pub fn day11_p2(_: anytype) !void {
     }
 }
 
-pub fn day11_p1(_: anytype) !void {
-    const f = try std.fs.cwd().openFile("inputs/day11/small.txt", .{});
+pub fn day11_p1(self: anytype) !void {
+    const f = try std.fs.cwd().openFile("inputs/day11/input.txt", .{});
     defer f.close();
     var buf: [65536]u8 = undefined;
+    var graph = Graph.init(self.allocator);
+    defer graph.deinit();
     while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |unfiltered| {
         var line = unfiltered;
         if (std.mem.indexOfScalar(u8, unfiltered, '\r')) |indx| {
             line = unfiltered[0..indx];
         }
         if (line.len == 0) break;
+
+        const start_node = line[0..std.mem.indexOfScalar(u8, line, ':').?];
+        var iter = std.mem.splitScalar(u8, line, ' ');
+        _ = iter.next();
+        //std.debug.print("start: {s}\n", .{start_node});
+        while (iter.next()) |end_node| {
+            //std.debug.print("end: {s}\n", .{end_node});
+            try graph.add_edge(start_node, end_node);
+        }
     }
+    //graph.print();
+    try common.timer_start();
+    std.debug.print("{d} paths in {d} seconds.\n", .{ try graph.compute_paths(graph.find_node("you").?, graph.find_node("out").?), common.timer_end() });
 }
