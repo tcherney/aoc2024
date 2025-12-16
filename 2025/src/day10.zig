@@ -217,7 +217,7 @@ pub const MachineV2 = struct {
             //std.debug.print("{any}\n", .{assignments.items});
             try assignment_ranges.append(assignments);
         }
-        var prod = try product(self.allocator, &assignment_ranges);
+        var prod = try common.itertools.product(u64, self.allocator, &assignment_ranges);
         defer {
             for (0..prod.items.len) |i| {
                 prod.items[i].deinit();
@@ -231,7 +231,7 @@ pub const MachineV2 = struct {
         //     std.debug.print("\n", .{});
         // }
         for (prod.items) |free_var_values| {
-            var num_presses: u64 = sum(u64, free_var_values.items);
+            var num_presses: u64 = common.itertools.sum(u64, free_var_values.items);
             // std.debug.print("Free var values {any}\nPresses {d}\n", .{ free_var_values.items, num_presses });
             if (min_val != null and num_presses >= min_val.?) {
                 continue;
@@ -290,62 +290,9 @@ pub const State = struct {
 
 pub const Queue = std.ArrayList(State);
 
-//TODO extract out these 3 functions into common lib and make them more generic
-
-pub fn sum(T: type, sequence: []T) T {
-    var ret: T = 0;
-    for (sequence) |i| {
-        ret += i;
-    }
-    return ret;
-}
-
-pub fn combinations(allocator: std.mem.Allocator, sequence: []u64, length: usize) !std.ArrayList(std.ArrayList(u64)) {
-    var combos = std.ArrayList(std.ArrayList(u64)).init(allocator);
-    for (0..sequence.len) |i| {
-        const rem_items = sequence[i + 1 ..];
-        const item = sequence[i];
-        if (length > 1) {
-            const rem_combos = try combinations(allocator, rem_items, length - 1);
-            defer rem_combos.deinit();
-            for (0..rem_combos.items.len) |j| {
-                try rem_combos.items[j].append(item);
-                try combos.append(rem_combos.items[j]);
-            }
-        } else {
-            var new_combo = std.ArrayList(u64).init(allocator);
-            try new_combo.append(item);
-            try combos.append(new_combo);
-        }
-    }
-    return combos;
-}
-
-pub fn product(allocator: std.mem.Allocator, lists: *std.ArrayList(std.ArrayList(u64))) !std.ArrayList(std.ArrayList(u64)) {
-    var combos = std.ArrayList(std.ArrayList(u64)).init(allocator);
-    if (lists.items.len == 0) {
-        try combos.append(std.ArrayList(u64).init(allocator));
-        return combos;
-    } else {
-        const first_list = lists.pop().?;
-        const remaining = try product(allocator, lists);
-        defer remaining.deinit();
-        for (first_list.items) |i| {
-            for (remaining.items) |r| {
-                var result_list = std.ArrayList(u64).init(allocator);
-                try result_list.append(i);
-                try result_list.appendSlice(r.items);
-                try combos.append(result_list);
-            }
-        }
-        first_list.deinit();
-    }
-    return combos;
-}
-
 pub fn min_pressesv2(machine: Machine) !u64 {
     for (1..machine.buttons.items.len) |presses| {
-        var combos = try combinations(machine.allocator, machine.buttons.items, presses);
+        var combos = try common.itertools.combinations(u64, machine.allocator, machine.buttons.items, presses);
         defer {
             for (0..combos.items.len) |i| {
                 combos.items[i].deinit();

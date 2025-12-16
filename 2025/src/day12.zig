@@ -84,28 +84,36 @@
 
 const std = @import("std");
 
-pub fn day12_p2(_: anytype) !void {
-    const f = try std.fs.cwd().openFile("inputs/day12/small.txt", .{});
-    defer f.close();
-    var buf: [65536]u8 = undefined;
-    while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |unfiltered| {
-        var line = unfiltered;
-        if (std.mem.indexOfScalar(u8, unfiltered, '\r')) |indx| {
-            line = unfiltered[0..indx];
-        }
-        if (line.len == 0) break;
-    }
-}
-
 pub fn day12_p1(_: anytype) !void {
-    const f = try std.fs.cwd().openFile("inputs/day12/small.txt", .{});
+    const f = try std.fs.cwd().openFile("inputs/day12/input.txt", .{});
     defer f.close();
     var buf: [65536]u8 = undefined;
+    var fit: u64 = 0;
     while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |unfiltered| {
         var line = unfiltered;
         if (std.mem.indexOfScalar(u8, unfiltered, '\r')) |indx| {
             line = unfiltered[0..indx];
         }
-        if (line.len == 0) break;
+        if (line.len == 0) continue;
+        if (std.mem.indexOfScalar(u8, line, 'x')) |_| {
+            var iter = std.mem.splitScalar(u8, line, ':');
+            const dim = iter.next().?;
+            var iter_dim = std.mem.splitScalar(u8, dim, 'x');
+            const w = try std.fmt.parseInt(u64, iter_dim.next().?, 10);
+            const h = try std.fmt.parseInt(u64, iter_dim.next().?, 10);
+            const area = @divFloor(w * h, 9);
+            var num_boxes: u64 = 0;
+            //std.debug.print("{d}x{d}, {d}\n", .{ w, h, area });
+            var box_iter = std.mem.splitScalar(u8, iter.next().?, ' ');
+            while (box_iter.next()) |boxes| {
+                //std.debug.print("{s} ", .{boxes});
+                num_boxes += std.fmt.parseInt(u64, boxes, 10) catch 0;
+            }
+            //std.debug.print("\n{d}\n", .{num_boxes});
+            if (num_boxes <= area) {
+                fit += 1;
+            }
+        }
     }
+    std.debug.print("Number of regions that can fit {d}.", .{fit});
 }

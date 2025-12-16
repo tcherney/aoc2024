@@ -148,10 +148,11 @@ pub const Game = struct {
         //try day8.day8_p2(self);
         //try day9.day9_p1(self);
 
-        //try day10.day10_p1(self);
-        //try day10.day10_p2(self);
-        //try day11.day11_p1(self);
+        try day10.day10_p1(self);
+        try day10.day10_p2(self);
+        try day11.day11_p1(self);
         try day11.day11_p2(self);
+        try day12.day12_p1(self);
         self.lock = std.Thread.Mutex{};
         engine.set_wasm_terminal_size(35, 150);
         self.e = try Engine.init(self.allocator, TERMINAL_WIDTH_OFFSET, TERMINAL_HEIGHT_OFFSET, .ascii, ._2d, .color_true, if (builtin.os.tag == .emscripten) .wasm else .native, if (builtin.os.tag == .emscripten) .single else .multi);

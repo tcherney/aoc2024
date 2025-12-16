@@ -179,7 +179,12 @@ pub const Graph = struct {
         if (node.indx == end.indx) {
             return 1;
         } else {
-            const e = self.dp.get(node);
+            const key = DPKey{
+                .node = node,
+                .dac = false,
+                .fft = false,
+            };
+            const e = self.dp.get(key);
             if (e) |val| {
                 return val;
             }
@@ -192,7 +197,7 @@ pub const Graph = struct {
                 }
             }
             //std.debug.print("Num path {d}\n", .{num_paths});
-            try self.dp.put(node, num_paths);
+            try self.dp.put(key, num_paths);
             return num_paths;
         }
     }
