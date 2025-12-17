@@ -87,11 +87,46 @@
 // Using password method 0x434C49434B, what is the password to open the door?
 
 const std = @import("std");
+const common = @import("common");
+
+pub fn on_render(self: anytype, _: u64) void {
+    //TODO lock dial visualization
+    //self.e.renderer.ascii.draw_symbol(@intFromFloat(x), @intFromFloat(y), 'X', common.Colors.GREEN, self.window);
+    const mid_dial = common.Point(2, i32){
+        .x = @bitCast(self.window.width / 2),
+        .y = @bitCast(self.window.height / 2),
+    };
+    const end_dial = common.Point(2, i32){ .x = @bitCast(self.window.width - 5), .y = @bitCast(self.window.height - 5) };
+}
+
+var current_rot: i32 = 50;
+var zero_cnt: i32 = 0;
+var part1: i32 = 0;
+var cmds: std.ArrayList(i32) = undefined;
+
+pub fn day1_iter(_: anytype, i: usize) void {
+    const start_rot = current_rot;
+    current_rot = @mod(current_rot + cmds.items[i], 100);
+    if (current_rot == 0) {
+        zero_cnt += 1;
+        part1 += 1;
+    } else if (cmds.items[i] < 0 and current_rot > start_rot and start_rot != 0) {
+        zero_cnt += 1;
+    } else if (cmds.items[i] > 0 and current_rot < start_rot and start_rot != 0) {
+        zero_cnt += 1;
+    }
+    if (cmds.items[i] >= 100) {
+        zero_cnt += @divFloor(cmds.items[i], 100);
+    } else if (cmds.items[i] <= -100) {
+        zero_cnt += @divFloor(cmds.items[i], -100);
+    }
+}
+
 pub fn day1(self: anytype) !void {
     const f = try std.fs.cwd().openFile("inputs/day1/input.txt", .{});
     defer f.close();
     var buf: [65536]u8 = undefined;
-    var cmds = std.ArrayList(i32).init(self.allocator);
+    cmds = std.ArrayList(i32).init(self.allocator);
     defer cmds.deinit();
     while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |unfiltered| {
         var line = unfiltered;
@@ -106,25 +141,8 @@ pub fn day1(self: anytype) !void {
     // for (0..cmds.items.len) |i| {
     //     std.debug.print("{any}\n", .{cmds.items[i]});
     // }
-    var current_rot: i32 = 50;
-    var zero_cnt: i32 = 0;
-    var part1: i32 = 0;
-    for (cmds.items) |n| {
-        const start_rot = current_rot;
-        current_rot = @mod(current_rot + n, 100);
-        if (current_rot == 0) {
-            zero_cnt += 1;
-            part1 += 1;
-        } else if (n < 0 and current_rot > start_rot and start_rot != 0) {
-            zero_cnt += 1;
-        } else if (n > 0 and current_rot < start_rot and start_rot != 0) {
-            zero_cnt += 1;
-        }
-        if (n >= 100) {
-            zero_cnt += @divFloor(n, 100);
-        } else if (n <= -100) {
-            zero_cnt += @divFloor(n, -100);
-        }
+    for (0..cmds.items.len) |i| {
+        day1_iter(self, i);
         //std.debug.print("{any} {any} {any} {any}\n", .{ n, start_rot, current_rot, zero_cnt });
     }
     std.debug.print("Password for part 1 {d}\nPassword for part 2 {d}\n", .{ part1, zero_cnt });

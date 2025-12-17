@@ -178,7 +178,6 @@ pub const Game = struct {
         // if (day9.part2) return;
         self.state = .game;
         try self.e.start();
-
         if (builtin.os.tag == .emscripten) {
             const res = emcc.EmsdkWrapper.emscripten_set_keydown_callback("body", self, true, em_key_handler);
             GAME_LOG.info("handler set {d}\n", .{res});
