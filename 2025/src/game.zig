@@ -40,9 +40,29 @@ pub const Game = struct {
     world_steps: u32 = 0,
     tui: TUI,
     pub const State = enum {
-        game,
-        start,
-        pause,
+        day1_p1,
+        day1_p2,
+        day2_p1,
+        day2_p2,
+        day3_p1,
+        day3_p2,
+        day4_p1,
+        day4_p2,
+        day5_p1,
+        day5_p2,
+        day6_p1,
+        day6_p2,
+        day7_p1,
+        day7_p2,
+        day8_p1,
+        day8_p2,
+        day9_p1,
+        day9_p2,
+        day10_p1,
+        day10_p2,
+        day11_p1,
+        day11_p2,
+        menu,
     };
     const Self = @This();
     pub const Error = error{} || engine.Error || std.posix.GetRandomError || std.mem.Allocator.Error;
@@ -74,49 +94,51 @@ pub const Game = struct {
 
     pub fn on_key_down(self: *Self, key: engine.KEYS) void {
         GAME_LOG.info("{}\n", .{key});
-        if (key == engine.KEYS.KEY_q) {
-            self.running = false;
-        }
         switch (self.state) {
-            .game => {
+            else => {
                 if (key == .KEY_w or key == .KEY_W) {} else if (key == .KEY_a or key == .KEY_A) {} else if (key == .KEY_s or key == .KEY_S) {} else if (key == .KEY_d or key == .KEY_D) {} else if (key == .KEY_q or key == .KEY_Q) {
                     self.running = false;
                 } else if (key == .KEY_ESC) {
-                    self.state = .pause;
-                }
-            },
-            .start => {
-                if (key == .KEY_SPACE) {
-                    self.state = .game;
-                }
-            },
-            .pause => {
-                if (key == .KEY_ESC) {
-                    self.state = .game;
+                    self.state = .menu;
                 }
             },
         }
     }
 
-    pub fn on_start_clicked(self: *Self) void {
-        self.state = .game;
-    }
     var scratch_buffer: [32]u8 = undefined;
-    pub fn on_render(self: *Self, dt: u64) !void {
+    pub fn on_render(self: *Self, _: u64) !void {
         if (!day9.part2) return;
         self.e.renderer.ascii.set_bg(0, 0, 0, self.window);
         for (0..self.window.ascii_buffer.len) |i| {
             self.window.ascii_buffer[i] = ' ';
         }
         switch (self.state) {
-            .game => {
-                if (day9.part2) {
-                    day9.on_render(self, dt);
-                }
-            },
-            .start, .pause => {
+            .day1_p1 => {},
+            .day1_p2 => {},
+            .day2_p1 => {},
+            .day2_p2 => {},
+            .day3_p1 => {},
+            .day3_p2 => {},
+            .day4_p1 => {},
+            .day4_p2 => {},
+            .day5_p1 => {},
+            .day5_p2 => {},
+            .day6_p1 => {},
+            .day6_p2 => {},
+            .day7_p1 => {},
+            .day7_p2 => {},
+            .day8_p1 => {},
+            .day8_p2 => {},
+            .day9_p1 => {},
+            .day9_p2 => {},
+            .day10_p1 => {},
+            .day10_p2 => {},
+            .day11_p1 => {},
+            .day11_p2 => {},
+            .menu => {
                 try self.tui.draw(&self.e.renderer, self.window, 0, 0, self.state);
             },
+            else => {},
         }
         try self.e.renderer.ascii.flip(self.window, self.viewport);
     }
@@ -129,7 +151,33 @@ pub const Game = struct {
         return true;
     }
 
-    pub fn update(_: *Self) !void {}
+    pub fn update(self: *Self) !void {
+        switch (self.state) {
+            .day1_p1 => {},
+            .day1_p2 => {},
+            .day2_p1 => {},
+            .day2_p2 => {},
+            .day3_p1 => {},
+            .day3_p2 => {},
+            .day4_p1 => {},
+            .day4_p2 => {},
+            .day5_p1 => {},
+            .day5_p2 => {},
+            .day6_p1 => {},
+            .day6_p2 => {},
+            .day7_p1 => {},
+            .day7_p2 => {},
+            .day8_p1 => {},
+            .day8_p2 => {},
+            .day9_p1 => {},
+            .day9_p2 => {},
+            .day10_p1 => {},
+            .day10_p2 => {},
+            .day11_p1 => {},
+            .day11_p2 => {},
+            else => {},
+        }
+    }
 
     pub fn run(self: *Self) !void {
         //try day1.day1(self);
@@ -169,14 +217,17 @@ pub const Game = struct {
         self.e.on_render(Self, on_render, self);
         self.e.on_mouse_change(Self, on_mouse_change, self);
         self.e.on_window_change(Self, on_window_change, self);
-        try self.tui.add_button(self.e.renderer.ascii.terminal.size.width / 2, self.e.renderer.ascii.terminal.size.height / 2, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, "Start", .start);
-        self.tui.items.items[self.tui.items.items.len - 1].set_on_click(Self, on_start_clicked, self);
-        try self.tui.add_button(self.e.renderer.ascii.terminal.size.width / 2, self.e.renderer.ascii.terminal.size.height / 2, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, "Pause", .pause);
+        try self.tui.add_button(self.e.renderer.ascii.terminal.size.width / 2, self.e.renderer.ascii.terminal.size.height / 2, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, "Day 1", .menu);
+        self.tui.items.items[self.tui.items.items.len - 1].set_on_click(Self, struct {
+            pub fn on_click(s: *Self) void {
+                s.state = .day1_p1;
+            }
+        }.on_click, self);
         self.e.set_fps(60);
         try common.gen_rand();
         // try day9.day9_p2(self);
         // if (day9.part2) return;
-        self.state = .game;
+        self.state = .menu;
         try self.e.start();
         if (builtin.os.tag == .emscripten) {
             const res = emcc.EmsdkWrapper.emscripten_set_keydown_callback("body", self, true, em_key_handler);
@@ -189,7 +240,7 @@ pub const Game = struct {
             delta = timer.read();
             timer.reset();
             self.lock.lock();
-
+            try self.update();
             self.lock.unlock();
             delta = timer.read();
             timer.reset();
