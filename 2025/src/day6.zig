@@ -44,6 +44,10 @@
 
 const std = @import("std");
 
+pub fn on_render(self: anytype) void {
+    //TODO highlight probblems as they are solved
+}
+
 pub const Problem = struct {
     numbers: std.ArrayList(usize),
     operation: ?Operation,

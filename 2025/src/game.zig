@@ -113,8 +113,12 @@ pub const Game = struct {
             self.window.ascii_buffer[i] = ' ';
         }
         switch (self.state) {
-            .day1_p1 => {},
-            .day1_p2 => {},
+            .day1_p1 => {
+                day1.on_render(self);
+            },
+            .day1_p2 => {
+                day1.on_render(self);
+            },
             .day2_p1 => {},
             .day2_p2 => {},
             .day3_p1 => {},
@@ -153,8 +157,12 @@ pub const Game = struct {
 
     pub fn update(self: *Self) !void {
         switch (self.state) {
-            .day1_p1 => {},
-            .day1_p2 => {},
+            .day1_p1 => {
+                day1.day1_update();
+            },
+            .day1_p2 => {
+                day1.day1_update();
+            },
             .day2_p1 => {},
             .day2_p2 => {},
             .day3_p1 => {},

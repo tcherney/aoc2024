@@ -141,6 +141,10 @@
 const std = @import("std");
 const common = @import("common");
 
+pub fn on_render(self: anytype) void {
+    //TODO highlight rectangles as they are checked
+}
+
 pub const Point = struct {
     x: f64,
     y: f64,

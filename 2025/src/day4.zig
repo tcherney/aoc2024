@@ -38,6 +38,11 @@
 // Consider your complete diagram of the paper roll locations. How many rolls of paper can be accessed by a forklift?
 
 const std = @import("std");
+
+pub fn on_render(self: anytype) void {
+    //TODO show exploration of space, either with color or drawing it all
+}
+
 pub fn day4_p2(self: anytype) !void {
     const f = try std.fs.cwd().openFile("inputs/day4/input.txt", .{});
     defer f.close();

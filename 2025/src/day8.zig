@@ -51,6 +51,10 @@
 
 const std = @import("std");
 
+pub fn on_render(self: anytype) void {
+    //TODO as boxes are connected show consolidated ids
+}
+
 pub const JunctionPoint = struct {
     x: f64,
     y: f64,

@@ -27,6 +27,10 @@
 
 const std = @import("std");
 
+pub fn on_render(self: anytype) void {
+    //TODO show joltage creation high light chosen numbers green?
+}
+
 pub fn update_and_clear(arr: []usize, i: usize, val: usize) void {
     arr[i] = val;
     for (i + 1..arr.len) |j| {

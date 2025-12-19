@@ -47,6 +47,10 @@
 const std = @import("std");
 const common = @import("common");
 
+pub fn on_render(self: anytype) void {
+    //TODO animate machine lights as they are solved
+}
+
 pub const Machine = struct {
     lights: u64,
     buttons: std.ArrayList(u64),

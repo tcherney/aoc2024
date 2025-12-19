@@ -190,6 +190,10 @@
 
 const std = @import("std");
 
+pub fn on_render(self: anytype) void {
+    //TODO animate beams
+}
+
 pub fn day7_p2(self: anytype) !void {
     const f = try std.fs.cwd().openFile("inputs/day7/input.txt", .{});
     defer f.close();

@@ -39,6 +39,15 @@ pub const Range = struct {
 };
 
 const std = @import("std");
+const common = @import("common");
+
+pub fn on_render(self: anytype) void {
+    //TODO display list, highlight valid green, invalid red, show total being added
+    self.e.renderer.ascii.draw_symbol(0, @bitCast(self.window.height / 2), '7', common.Colors.GREEN, self.window);
+}
+
+pub fn day2_p1_update() void {}
+
 var seq_scratch: [1024]u8 = undefined;
 var cur_seq_scratch: [1024]u8 = undefined;
 var cpy_scratch: [1024]u8 = undefined;

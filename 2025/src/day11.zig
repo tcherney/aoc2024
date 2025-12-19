@@ -73,6 +73,10 @@
 const std = @import("std");
 const common = @import("common");
 
+pub fn on_render(self: anytype) void {
+    //TODO could show paths as we go through and highlight the fft/dac names in the path like the example
+}
+
 pub const Node = struct {
     name: []u8,
     indx: usize,

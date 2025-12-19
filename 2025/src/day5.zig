@@ -51,6 +51,10 @@
 
 const std = @import("std");
 
+pub fn on_render(self: anytype) void {
+    //TODO go through list highlihgting the fresh ids?
+}
+
 pub const Range = struct {
     start: usize,
     end: usize,

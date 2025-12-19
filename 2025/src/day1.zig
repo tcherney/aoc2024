@@ -89,22 +89,49 @@
 const std = @import("std");
 const common = @import("common");
 
-pub fn on_render(self: anytype, _: u64) void {
+pub fn on_render(self: anytype) void {
     //TODO lock dial visualization
     //self.e.renderer.ascii.draw_symbol(@intFromFloat(x), @intFromFloat(y), 'X', common.Colors.GREEN, self.window);
     const mid_dial = common.Point(2, i32){
         .x = @bitCast(self.window.width / 2),
         .y = @bitCast(self.window.height / 2),
     };
-    const end_dial = common.Point(2, i32){ .x = @bitCast(self.window.width - 5), .y = @bitCast(self.window.height - 5) };
+    const end_dial = common.Point(2, i32){ .x = @bitCast(self.window.width / 2), .y = 5 };
+    self.e.renderer.ascii.draw_symbol(0, @bitCast(self.window.height / 2), '7', common.Colors.GREEN, self.window);
+    self.e.renderer.ascii.draw_symbol(1, @bitCast(self.window.height / 2), '5', common.Colors.GREEN, self.window);
+
+    self.e.renderer.ascii.draw_symbol(@bitCast(self.window.width - 5), @bitCast(self.window.height / 2), '2', common.Colors.GREEN, self.window);
+    self.e.renderer.ascii.draw_symbol(@bitCast(self.window.width - 4), @bitCast(self.window.height / 2), '5', common.Colors.GREEN, self.window);
+
+    self.e.renderer.ascii.draw_symbol(@bitCast(self.window.width / 2), @bitCast(self.window.height / 2), '5', common.Colors.GREEN, self.window);
+    self.e.renderer.ascii.draw_symbol(@bitCast((self.window.width / 2) + 1), @bitCast(self.window.height / 2), '0', common.Colors.GREEN, self.window);
+
+    self.e.renderer.ascii.draw_symbol(@bitCast(self.window.width / 2), 0, '0', common.Colors.GREEN, self.window);
+
+    //TODO use sin/cos to move end dial to the correct location
+    //TODO this function isn't implemented for ascii
+    const x = std.math.cos(@as(f64, @floatFromInt(current_rot)) * 2 * std.math.pi / 100.0) * @as(f64, @floatFromInt(end_dial.x));
+    const y = std.math.sin(@as(f64, @floatFromInt(current_rot)) * 2 * std.math.pi / 100.0) * @as(f64, @floatFromInt(end_dial.y));
+    self.e.renderer.ascii.draw_line('#', common.Colors.GREEN, mid_dial, .{
+        .x = @intFromFloat(x),
+        .y = @intFromFloat(y),
+    }, self.window);
 }
 
 var current_rot: i32 = 50;
 var zero_cnt: i32 = 0;
 var part1: i32 = 0;
 var cmds: std.ArrayList(i32) = undefined;
+var iteration: usize = 0;
 
-pub fn day1_iter(_: anytype, i: usize) void {
+pub fn day1_update() void {
+    day1_iter(iteration);
+    if (iteration == cmds.items.len) {
+        std.debug.print("Password for part 1 {d}\nPassword for part 2 {d}\n", .{ part1, zero_cnt });
+    }
+}
+
+pub fn day1_iter(i: usize) void {
     const start_rot = current_rot;
     current_rot = @mod(current_rot + cmds.items[i], 100);
     if (current_rot == 0) {
@@ -122,12 +149,15 @@ pub fn day1_iter(_: anytype, i: usize) void {
     }
 }
 
+pub fn deinit() void {
+    cmds.deinit();
+}
+
 pub fn day1(self: anytype) !void {
     const f = try std.fs.cwd().openFile("inputs/day1/input.txt", .{});
     defer f.close();
     var buf: [65536]u8 = undefined;
     cmds = std.ArrayList(i32).init(self.allocator);
-    defer cmds.deinit();
     while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |unfiltered| {
         var line = unfiltered;
         if (std.mem.indexOfScalar(u8, unfiltered, '\r')) |indx| {
@@ -141,9 +171,4 @@ pub fn day1(self: anytype) !void {
     // for (0..cmds.items.len) |i| {
     //     std.debug.print("{any}\n", .{cmds.items[i]});
     // }
-    for (0..cmds.items.len) |i| {
-        day1_iter(self, i);
-        //std.debug.print("{any} {any} {any} {any}\n", .{ n, start_rot, current_rot, zero_cnt });
-    }
-    std.debug.print("Password for part 1 {d}\nPassword for part 2 {d}\n", .{ part1, zero_cnt });
 }
