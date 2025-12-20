@@ -40,28 +40,17 @@ pub const Game = struct {
     world_steps: u32 = 0,
     tui: TUI,
     pub const State = enum {
-        day1_p1,
-        day1_p2,
-        day2_p1,
-        day2_p2,
-        day3_p1,
-        day3_p2,
-        day4_p1,
-        day4_p2,
-        day5_p1,
-        day5_p2,
-        day6_p1,
-        day6_p2,
-        day7_p1,
-        day7_p2,
-        day8_p1,
-        day8_p2,
-        day9_p1,
-        day9_p2,
-        day10_p1,
-        day10_p2,
-        day11_p1,
-        day11_p2,
+        day1,
+        day2,
+        day3,
+        day4,
+        day5,
+        day6,
+        day7,
+        day8,
+        day9,
+        day10,
+        day11,
         menu,
     };
     const Self = @This();
@@ -113,32 +102,39 @@ pub const Game = struct {
             self.window.ascii_buffer[i] = ' ';
         }
         switch (self.state) {
-            .day1_p1 => {
+            .day1 => {
                 day1.on_render(self);
             },
-            .day1_p2 => {
-                day1.on_render(self);
+            .day2 => {
+                day2.on_render(self);
             },
-            .day2_p1 => {},
-            .day2_p2 => {},
-            .day3_p1 => {},
-            .day3_p2 => {},
-            .day4_p1 => {},
-            .day4_p2 => {},
-            .day5_p1 => {},
-            .day5_p2 => {},
-            .day6_p1 => {},
-            .day6_p2 => {},
-            .day7_p1 => {},
-            .day7_p2 => {},
-            .day8_p1 => {},
-            .day8_p2 => {},
-            .day9_p1 => {},
-            .day9_p2 => {},
-            .day10_p1 => {},
-            .day10_p2 => {},
-            .day11_p1 => {},
-            .day11_p2 => {},
+            .day3 => {
+                day3.on_render(self);
+            },
+            .day4 => {
+                day4.on_render(self);
+            },
+            .day5 => {
+                day5.on_render(self);
+            },
+            .day6 => {
+                day6.on_render(self);
+            },
+            .day7 => {
+                day7.on_render(self);
+            },
+            .day8 => {
+                day8.on_render(self);
+            },
+            .day9 => {
+                day9.on_render(self);
+            },
+            .day10 => {
+                day10.on_render(self);
+            },
+            .day11 => {
+                day11.on_render(self);
+            },
             .menu => {
                 try self.tui.draw(&self.e.renderer, self.window, 0, 0, self.state);
             },
@@ -157,58 +153,24 @@ pub const Game = struct {
 
     pub fn update(self: *Self) !void {
         switch (self.state) {
-            .day1_p1 => {
+            .day1 => {
                 day1.day1_update();
             },
-            .day1_p2 => {
-                day1.day1_update();
-            },
-            .day2_p1 => {},
-            .day2_p2 => {},
-            .day3_p1 => {},
-            .day3_p2 => {},
-            .day4_p1 => {},
-            .day4_p2 => {},
-            .day5_p1 => {},
-            .day5_p2 => {},
-            .day6_p1 => {},
-            .day6_p2 => {},
-            .day7_p1 => {},
-            .day7_p2 => {},
-            .day8_p1 => {},
-            .day8_p2 => {},
-            .day9_p1 => {},
-            .day9_p2 => {},
-            .day10_p1 => {},
-            .day10_p2 => {},
-            .day11_p1 => {},
-            .day11_p2 => {},
+            .day2 => {},
+            .day3 => {},
+            .day4 => {},
+            .day5 => {},
+            .day6 => {},
+            .day7 => {},
+            .day8 => {},
+            .day9 => {},
+            .day10 => {},
+            .day11 => {},
             else => {},
         }
     }
 
     pub fn run(self: *Self) !void {
-        //try day1.day1(self);
-        //try day2.day2_p1(self);
-        //try day2.day2_p2(self);
-        //try day3.day3_p2(self);
-        //try day4.day4_p1(self);
-        //try day4.day4_p2(self);
-        //try day5.day5_p1(self);
-        //try day5.day5_p2(self);
-        //try day6.day6_p1(self);
-        //try day6.day6_p2(self);
-        //try day7.day7_p1(self);
-        //try day7.day7_p2(self);
-        //try day8.day8_p1(self);
-        //try day8.day8_p2(self);
-        //try day9.day9_p1(self);
-
-        try day10.day10_p1(self);
-        try day10.day10_p2(self);
-        try day11.day11_p1(self);
-        try day11.day11_p2(self);
-        try day12.day12_p1(self);
         self.lock = std.Thread.Mutex{};
         engine.set_wasm_terminal_size(35, 150);
         self.e = try Engine.init(self.allocator, TERMINAL_WIDTH_OFFSET, TERMINAL_HEIGHT_OFFSET, .ascii, ._2d, .color_true, if (builtin.os.tag == .emscripten) .wasm else .native, if (builtin.os.tag == .emscripten) .single else .multi);
@@ -225,10 +187,71 @@ pub const Game = struct {
         self.e.on_render(Self, on_render, self);
         self.e.on_mouse_change(Self, on_mouse_change, self);
         self.e.on_window_change(Self, on_window_change, self);
-        try self.tui.add_button(self.e.renderer.ascii.terminal.size.width / 2, self.e.renderer.ascii.terminal.size.height / 2, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, "Day 1", .menu);
+        //TODO tui update add layouts
+        try self.tui.add_button(5, 5, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, "Day 1", .menu);
         self.tui.items.items[self.tui.items.items.len - 1].set_on_click(Self, struct {
             pub fn on_click(s: *Self) void {
-                s.state = .day1_p1;
+                s.state = .day1;
+            }
+        }.on_click, self);
+        try self.tui.add_button(5, 5 + self.tui.items.items[0].button.height + 1, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, "Day 1", .menu);
+        self.tui.items.items[self.tui.items.items.len - 1].set_on_click(Self, struct {
+            pub fn on_click(s: *Self) void {
+                s.state = .day2;
+            }
+        }.on_click, self);
+        try self.tui.add_button(5, 5 + (self.tui.items.items[0].button.height + 1) * 2, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, "Day 1", .menu);
+        self.tui.items.items[self.tui.items.items.len - 1].set_on_click(Self, struct {
+            pub fn on_click(s: *Self) void {
+                s.state = .day3;
+            }
+        }.on_click, self);
+        try self.tui.add_button(5, 5 + (self.tui.items.items[0].button.height + 1) * 3, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, "Day 1", .menu);
+        self.tui.items.items[self.tui.items.items.len - 1].set_on_click(Self, struct {
+            pub fn on_click(s: *Self) void {
+                s.state = .day4;
+            }
+        }.on_click, self);
+        try self.tui.add_button(5, 5 + (self.tui.items.items[0].button.height + 1) * 4, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, "Day 1", .menu);
+        self.tui.items.items[self.tui.items.items.len - 1].set_on_click(Self, struct {
+            pub fn on_click(s: *Self) void {
+                s.state = .day5;
+            }
+        }.on_click, self);
+        try self.tui.add_button(5, 5 + (self.tui.items.items[0].button.height + 1) * 5, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, "Day 1", .menu);
+        self.tui.items.items[self.tui.items.items.len - 1].set_on_click(Self, struct {
+            pub fn on_click(s: *Self) void {
+                s.state = .day6;
+            }
+        }.on_click, self);
+        try self.tui.add_button(5 + self.tui.items.items[0].button.width + 1, 5 + (self.tui.items.items[0].button.height + 1), null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, "Day 1", .menu);
+        self.tui.items.items[self.tui.items.items.len - 1].set_on_click(Self, struct {
+            pub fn on_click(s: *Self) void {
+                s.state = .day7;
+            }
+        }.on_click, self);
+        try self.tui.add_button(5 + self.tui.items.items[0].button.width + 1, 5 + (self.tui.items.items[0].button.height + 1) * 2, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, "Day 1", .menu);
+        self.tui.items.items[self.tui.items.items.len - 1].set_on_click(Self, struct {
+            pub fn on_click(s: *Self) void {
+                s.state = .day8;
+            }
+        }.on_click, self);
+        try self.tui.add_button(5 + self.tui.items.items[0].button.width + 1, 5 + (self.tui.items.items[0].button.height + 1) * 3, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, "Day 1", .menu);
+        self.tui.items.items[self.tui.items.items.len - 1].set_on_click(Self, struct {
+            pub fn on_click(s: *Self) void {
+                s.state = .day9;
+            }
+        }.on_click, self);
+        try self.tui.add_button(5 + self.tui.items.items[0].button.width + 1, 5 + (self.tui.items.items[0].button.height + 1) * 4, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, "Day 1", .menu);
+        self.tui.items.items[self.tui.items.items.len - 1].set_on_click(Self, struct {
+            pub fn on_click(s: *Self) void {
+                s.state = .day10;
+            }
+        }.on_click, self);
+        try self.tui.add_button(5 + self.tui.items.items[0].button.width + 1, 5 + (self.tui.items.items[0].button.height + 1) * 5, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, "Day 1", .menu);
+        self.tui.items.items[self.tui.items.items.len - 1].set_on_click(Self, struct {
+            pub fn on_click(s: *Self) void {
+                s.state = .day11;
             }
         }.on_click, self);
         self.e.set_fps(60);
