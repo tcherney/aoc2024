@@ -66,9 +66,18 @@ pub const Game = struct {
         try self.e.deinit();
         self.window.deinit();
         self.tui.deinit();
-        if (day9.part1 or day9.part2) {
-            day9.deinit(self);
-        }
+        day1.deinit(self);
+        day2.deinit(self);
+        day3.deinit(self);
+        day4.deinit(self);
+        day5.deinit(self);
+        day6.deinit(self);
+        day7.deinit(self);
+        day8.deinit(self);
+        day9.deinit(self);
+        day10.deinit(self);
+        day11.deinit(self);
+        day12.deinit(self);
     }
     //TODO handle mouse/touch
     pub fn on_mouse_change(self: *Self, mouse_event: engine.MouseEvent) void {
@@ -135,6 +144,9 @@ pub const Game = struct {
             .day11 => {
                 day11.on_render(self);
             },
+            .day12 => {
+                day12.on_render(self);
+            },
             .menu => {
                 try self.tui.draw(&self.e.renderer, self.window, 0, 0, self.state);
             },
@@ -156,16 +168,39 @@ pub const Game = struct {
             .day1 => {
                 day1.day1_update();
             },
-            .day2 => {},
-            .day3 => {},
-            .day4 => {},
-            .day5 => {},
-            .day6 => {},
-            .day7 => {},
-            .day8 => {},
-            .day9 => {},
-            .day10 => {},
-            .day11 => {},
+            .day2 => {
+                day2.day2_update();
+            },
+            .day3 => {
+                day3.day3_update();
+            },
+            .day4 => {
+                day4.day4_update();
+            },
+            .day5 => {
+                day5.day5_update();
+            },
+            .day6 => {
+                day6.day6_update();
+            },
+            .day7 => {
+                day7.day7_update();
+            },
+            .day8 => {
+                day8.day8_update();
+            },
+            .day9 => {
+                day9.day9_update();
+            },
+            .day10 => {
+                day10.day10_update();
+            },
+            .day11 => {
+                day11.day11_update();
+            },
+            .day12 => {
+                day12.day12_update();
+            },
             else => {},
         }
     }

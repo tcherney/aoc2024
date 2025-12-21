@@ -123,6 +123,7 @@ var zero_cnt: i32 = 0;
 var part1: i32 = 0;
 var cmds: std.ArrayList(i32) = undefined;
 var iteration: usize = 0;
+var run: bool = false;
 
 pub fn day1_update() void {
     day1_iter(iteration);
@@ -150,7 +151,9 @@ pub fn day1_iter(i: usize) void {
 }
 
 pub fn deinit() void {
-    cmds.deinit();
+    if (run) {
+        cmds.deinit();
+    }
 }
 
 pub fn day1(self: anytype) !void {
@@ -167,6 +170,7 @@ pub fn day1(self: anytype) !void {
         line = line[1..];
         try cmds.append(try std.fmt.parseInt(i32, line, 10) * modifier);
     }
+    run = true;
     // std.debug.print("{any}\n", .{cmds.items.len});
     // for (0..cmds.items.len) |i| {
     //     std.debug.print("{any}\n", .{cmds.items[i]});

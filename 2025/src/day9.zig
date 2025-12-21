@@ -141,10 +141,6 @@
 const std = @import("std");
 const common = @import("common");
 
-pub fn on_render(self: anytype) void {
-    //TODO highlight rectangles as they are checked
-}
-
 pub const Point = struct {
     x: f64,
     y: f64,
@@ -262,6 +258,7 @@ pub var part1: bool = false;
 pub var part2: bool = false;
 
 pub fn on_render(self: anytype, _: u64) void {
+    //TODO highlight rectangles as they are checked
     for (lines.items) |l| {
         if (l.p1.x == l.p2.x) {
             const p_start = if (l.p1.y < l.p2.y) l.p1 else l.p2;

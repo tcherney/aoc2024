@@ -49,6 +49,11 @@ const common = @import("common");
 
 pub fn on_render(self: anytype) void {
     //TODO animate machine lights as they are solved
+    self.e.renderer.ascii.draw_symbol(0, @bitCast(self.window.height / 2), '7', common.Colors.GREEN, self.window);
+}
+
+pub fn deinit(self: anytype) void {
+    _ = self;
 }
 
 pub const Machine = struct {

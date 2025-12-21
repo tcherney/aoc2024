@@ -83,6 +83,16 @@
 // Consider the regions beneath each tree and the presents the Elves would like to fit into each of them. How many of the regions can fit all of the presents listed?
 
 const std = @import("std");
+const common = @import("common");
+
+pub fn on_render(self: anytype) void {
+    //TODO just output the text of the answer
+    self.e.renderer.ascii.draw_symbol(0, @bitCast(self.window.height / 2), '7', common.Colors.GREEN, self.window);
+}
+
+pub fn deinit(self: anytype) void {
+    _ = self;
+}
 
 pub fn day12_p1(_: anytype) !void {
     const f = try std.fs.cwd().openFile("inputs/day12/input.txt", .{});

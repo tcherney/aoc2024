@@ -38,9 +38,15 @@
 // Consider your complete diagram of the paper roll locations. How many rolls of paper can be accessed by a forklift?
 
 const std = @import("std");
+const common = @import("common");
 
 pub fn on_render(self: anytype) void {
     //TODO show exploration of space, either with color or drawing it all
+    self.e.renderer.ascii.draw_symbol(0, @bitCast(self.window.height / 2), '7', common.Colors.GREEN, self.window);
+}
+
+pub fn deinit(self: anytype) void {
+    _ = self;
 }
 
 pub fn day4_p2(self: anytype) !void {

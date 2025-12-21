@@ -189,9 +189,15 @@
 // Apply the many-worlds interpretation of quantum tachyon splitting to your manifold diagram. In total, how many different timelines would a single tachyon particle end up on?
 
 const std = @import("std");
+const common = @import("common");
 
 pub fn on_render(self: anytype) void {
     //TODO animate beams
+    self.e.renderer.ascii.draw_symbol(0, @bitCast(self.window.height / 2), '7', common.Colors.GREEN, self.window);
+}
+
+pub fn deinit(self: anytype) void {
+    _ = self;
 }
 
 pub fn day7_p2(self: anytype) !void {

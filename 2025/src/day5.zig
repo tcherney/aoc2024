@@ -50,9 +50,15 @@
 // Process the database file again. How many ingredient IDs are considered to be fresh according to the fresh ingredient ID ranges?
 
 const std = @import("std");
+const common = @import("common");
 
 pub fn on_render(self: anytype) void {
     //TODO go through list highlihgting the fresh ids?
+    self.e.renderer.ascii.draw_symbol(0, @bitCast(self.window.height / 2), '7', common.Colors.GREEN, self.window);
+}
+
+pub fn deinit(self: anytype) void {
+    _ = self;
 }
 
 pub const Range = struct {

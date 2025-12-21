@@ -50,9 +50,15 @@
 // Your list contains many junction boxes; connect together the 1000 pairs of junction boxes which are closest together. Afterward, what do you get if you multiply together the sizes of the three largest circuits?
 
 const std = @import("std");
+const common = @import("common");
 
 pub fn on_render(self: anytype) void {
     //TODO as boxes are connected show consolidated ids
+    self.e.renderer.ascii.draw_symbol(0, @bitCast(self.window.height / 2), '7', common.Colors.GREEN, self.window);
+}
+
+pub fn deinit(self: anytype) void {
+    _ = self;
 }
 
 pub const JunctionPoint = struct {

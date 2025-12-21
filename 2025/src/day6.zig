@@ -43,9 +43,15 @@
 // Solve the problems on the math worksheet again. What is the grand total found by adding together all of the answers to the individual problems?
 
 const std = @import("std");
+const common = @import("common");
 
 pub fn on_render(self: anytype) void {
     //TODO highlight probblems as they are solved
+    self.e.renderer.ascii.draw_symbol(0, @bitCast(self.window.height / 2), '7', common.Colors.GREEN, self.window);
+}
+
+pub fn deinit(self: anytype) void {
+    _ = self;
 }
 
 pub const Problem = struct {

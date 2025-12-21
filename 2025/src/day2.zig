@@ -46,6 +46,10 @@ pub fn on_render(self: anytype) void {
     self.e.renderer.ascii.draw_symbol(0, @bitCast(self.window.height / 2), '7', common.Colors.GREEN, self.window);
 }
 
+pub fn deinit(self: anytype) void {
+    _ = self;
+}
+
 pub fn day2_p1_update() void {}
 
 var seq_scratch: [1024]u8 = undefined;

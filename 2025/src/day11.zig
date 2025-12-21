@@ -75,6 +75,11 @@ const common = @import("common");
 
 pub fn on_render(self: anytype) void {
     //TODO could show paths as we go through and highlight the fft/dac names in the path like the example
+    self.e.renderer.ascii.draw_symbol(0, @bitCast(self.window.height / 2), '7', common.Colors.GREEN, self.window);
+}
+
+pub fn deinit(self: anytype) void {
+    _ = self;
 }
 
 pub const Node = struct {

@@ -26,9 +26,15 @@
 // There are many batteries in front of you. Find the maximum joltage possible from each bank; what is the total output joltage?
 
 const std = @import("std");
+const common = @import("common");
 
 pub fn on_render(self: anytype) void {
     //TODO show joltage creation high light chosen numbers green?
+    self.e.renderer.ascii.draw_symbol(0, @bitCast(self.window.height / 2), '7', common.Colors.GREEN, self.window);
+}
+
+pub fn deinit(self: anytype) void {
+    _ = self;
 }
 
 pub fn update_and_clear(arr: []usize, i: usize, val: usize) void {
