@@ -47,7 +47,12 @@ pub fn on_render(self: anytype) void {
 }
 
 pub fn deinit(self: anytype) void {
-    _ = self;
+    if (part1 or part2) {
+        ranges.deinit();
+        if (part2) {
+            num_map.deinit();
+        }
+    }
 }
 
 pub fn day2_p1_update() void {}
@@ -55,12 +60,17 @@ pub fn day2_p1_update() void {}
 var seq_scratch: [1024]u8 = undefined;
 var cur_seq_scratch: [1024]u8 = undefined;
 var cpy_scratch: [1024]u8 = undefined;
+var part1: bool = false;
+var part2: bool = false;
+var ranges: std.ArrayList(Range) = undefined;
+var num_map: std.AutoHashMap(usize, bool) = undefined;
+
 pub fn day2_p2(self: anytype) !void {
     const f = try std.fs.cwd().openFile("inputs/day2/input.txt", .{});
     defer f.close();
     var buf: [65536]u8 = undefined;
-    var ranges = std.ArrayList(Range).init(self.allocator);
-    defer ranges.deinit();
+    ranges = std.ArrayList(Range).init(self.allocator);
+    part2 = true;
     while (try f.reader().readUntilDelimiterOrEof(&buf, ',')) |line| {
         //std.debug.print("{any}\n", .{std.mem.indexOf(u8, line, "-")});
         if (std.mem.indexOf(u8, line, "-") == null) continue;
@@ -87,8 +97,7 @@ pub fn day2_p2(self: anytype) !void {
         const repeated_len = @divFloor(max_digits, 2);
         const max_seq = std.math.pow(usize, 10, repeated_len + 1);
         const adjust = std.math.pow(usize, 10, repeated_len);
-        var num_map: std.AutoHashMap(usize, bool) = std.AutoHashMap(usize, bool).init(self.allocator);
-        defer num_map.deinit();
+        num_map = std.AutoHashMap(usize, bool).init(self.allocator);
         std.debug.print("Init {any}--{any}--{any}\n", .{ repeated_len, max_seq, adjust });
         std.debug.print("{any}-{any}", .{ r.start, r.end });
         for (0..max_seq) |i| {
@@ -139,8 +148,8 @@ pub fn day2_p1(self: anytype) !void {
     const f = try std.fs.cwd().openFile("inputs/day2/input.txt", .{});
     defer f.close();
     var buf: [65536]u8 = undefined;
-    var ranges = std.ArrayList(Range).init(self.allocator);
-    defer ranges.deinit();
+    ranges = std.ArrayList(Range).init(self.allocator);
+    part1 = true;
     while (try f.reader().readUntilDelimiterOrEof(&buf, ',')) |line| {
         //std.debug.print("{any}\n", .{std.mem.indexOf(u8, line, "-")});
         if (std.mem.indexOf(u8, line, "-") == null) continue;
@@ -151,6 +160,7 @@ pub fn day2_p1(self: anytype) !void {
     std.debug.print("Ranges\n", .{});
     var num_invalid: usize = 0;
     var invalid_sum: usize = 0;
+    //TODO break down iterable version of function, one range at a time
     for (ranges.items) |r| {
         var min_digits: usize = 1;
         var max_digits: usize = 1;
