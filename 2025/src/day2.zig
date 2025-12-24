@@ -43,70 +43,79 @@ const common = @import("common");
 
 pub fn on_render(self: anytype) void {
     //TODO display list, highlight valid green, invalid red, show total being added
-    self.e.renderer.ascii.draw_symbol(0, @bitCast(self.window.height / 2), '7', common.Colors.GREEN, self.window);
+    if (state == .part1 or state == .part2) {
+        self.e.renderer.ascii.draw_symbol(0, @bitCast(self.window.height / 2), '7', common.Colors.GREEN, self.window);
+    }
 }
 
 pub fn deinit(_: anytype) void {
-    if (part1 or part2) {
-        ranges.deinit();
-        if (part2) {
-            num_map.deinit();
-        }
-    }
+    ranges.deinit();
+    num_map.deinit();
 }
 
 pub const RunningState = enum {
     init,
-    running,
+    part1,
+    part2,
     done,
 };
 
-pub fn day2_p1_update(self: anytype) void {
-    if (part1) {
-        day2_p1(self);
-    } else if (part2) {
-        day2_p2(self);
+pub fn init(self: anytype) !void {
+    const f = try std.fs.cwd().openFile("inputs/day2/input.txt", .{});
+    defer f.close();
+    var buf: [65536]u8 = undefined;
+    ranges = std.ArrayList(Range).init(self.allocator);
+    while (try f.reader().readUntilDelimiterOrEof(&buf, ',')) |line| {
+        //std.debug.print("{any}\n", .{std.mem.indexOf(u8, line, "-")});
+        if (std.mem.indexOf(u8, line, "-") == null) continue;
+        std.debug.print("{s}\n", .{line});
+        var it = std.mem.splitScalar(u8, line, '-');
+        try ranges.append(.{ .start = try std.fmt.parseInt(usize, it.next().?, 10), .end = try std.fmt.parseInt(usize, it.next().?, 10) });
+    }
+    num_map = std.AutoHashMap(usize, bool).init(self.allocator);
+    num_invalid = 0;
+    invalid_sum = 0;
+    state = .part1;
+}
+
+pub fn start() void {
+    switch (state) {
+        .done => {
+            state = .part1;
+        },
+        else => {},
+    }
+}
+
+pub fn day2_update(self: anytype) void {
+    switch (state) {
+        .part1 => {
+            day2_p1(self);
+        },
+        .part2 => {
+            day2_p2(self);
+        },
+        else => {},
     }
 }
 
 var seq_scratch: [1024]u8 = undefined;
 var cur_seq_scratch: [1024]u8 = undefined;
 var cpy_scratch: [1024]u8 = undefined;
-var part1: bool = false;
-var part2: bool = false;
 var ranges: std.ArrayList(Range) = undefined;
 var num_map: std.AutoHashMap(usize, bool) = undefined;
 var curr_iter: usize = 0;
-var initialized: bool = false;
 var num_invalid: usize = 0;
 var invalid_sum: usize = 0;
-var done: bool = false;
+var state: RunningState = .init;
 
 pub fn day2_p2(self: anytype) !void {
-    if (!initialized) {
-        const f = try std.fs.cwd().openFile("inputs/day2/input.txt", .{});
-        defer f.close();
-        var buf: [65536]u8 = undefined;
-        ranges = std.ArrayList(Range).init(self.allocator);
-        part2 = true;
-        while (try f.reader().readUntilDelimiterOrEof(&buf, ',')) |line| {
-            //std.debug.print("{any}\n", .{std.mem.indexOf(u8, line, "-")});
-            if (std.mem.indexOf(u8, line, "-") == null) continue;
-            std.debug.print("{s}\n", .{line});
-            var it = std.mem.splitScalar(u8, line, '-');
-            try ranges.append(.{ .start = try std.fmt.parseInt(usize, it.next().?, 10), .end = try std.fmt.parseInt(usize, it.next().?, 10) });
-        }
-        initialized = true;
-        num_invalid = 0;
-        invalid_sum = 0;
-    }
-
     if (curr_iter >= ranges.items.len) {
         std.debug.print("Part 2: Number of invalid ids {d}, total {d}\n", .{ num_invalid, invalid_sum });
         curr_iter = 0;
         num_invalid = 0;
         invalid_sum = 0;
-        done = true;
+        state = .done;
         return;
     }
     const r = ranges.items[curr_iter];
@@ -126,9 +135,9 @@ pub fn day2_p2(self: anytype) !void {
     const repeated_len = @divFloor(max_digits, 2);
     const max_seq = std.math.pow(usize, 10, repeated_len + 1);
     const adjust = std.math.pow(usize, 10, repeated_len);
-    num_map = std.AutoHashMap(usize, bool).init(self.allocator);
-    std.debug.print("Init {any}--{any}--{any}\n", .{ repeated_len, max_seq, adjust });
-    std.debug.print("{any}-{any}", .{ r.start, r.end });
+    num_map.clearRetainingCapacity();
+    //std.debug.print("Init {any}--{any}--{any}\n", .{ repeated_len, max_seq, adjust });
+    //std.debug.print("{any}-{any}", .{ r.start, r.end });
     for (0..max_seq) |i| {
         const val = i + (i * adjust);
         if (val >= r.start and val <= r.end) {
@@ -143,7 +152,7 @@ pub fn day2_p2(self: anytype) !void {
                     try num_map.put(val, true);
                     num_invalid += 1;
                     invalid_sum += val;
-                    std.debug.print(" {d}({d})", .{ val, i });
+                    //std.debug.print(" {d}({d})", .{ val, i });
                     continue;
                 }
             }
@@ -161,40 +170,23 @@ pub fn day2_p2(self: anytype) !void {
                     try num_map.put(num_val, true);
                     num_invalid += 1;
                     invalid_sum += num_val;
-                    std.debug.print(" {d}({d})", .{ num_val, i });
+                    //std.debug.print(" {d}({d})", .{ num_val, i });
                     break;
                 }
             }
             j += string_seq.len;
         }
     }
-    std.debug.print("\n", .{});
+    //std.debug.print("\n", .{});
 }
 
-pub fn day2_p1(self: anytype) !void {
-    if (!initialized) {
-        const f = try std.fs.cwd().openFile("inputs/day2/input.txt", .{});
-        defer f.close();
-        var buf: [65536]u8 = undefined;
-        ranges = std.ArrayList(Range).init(self.allocator);
-        part1 = true;
-        while (try f.reader().readUntilDelimiterOrEof(&buf, ',')) |line| {
-            //std.debug.print("{any}\n", .{std.mem.indexOf(u8, line, "-")});
-            if (std.mem.indexOf(u8, line, "-") == null) continue;
-            std.debug.print("{s}\n", .{line});
-            var it = std.mem.splitScalar(u8, line, '-');
-            try ranges.append(.{ .start = try std.fmt.parseInt(usize, it.next().?, 10), .end = try std.fmt.parseInt(usize, it.next().?, 10) });
-        }
-        initialized = true;
-        num_invalid = 0;
-        invalid_sum = 0;
-    }
+pub fn day2_p1(_: anytype) !void {
     if (curr_iter >= ranges.items.len) {
         std.debug.print("Part 1: Number of invalid ids {d}, total {d}\n", .{ num_invalid, invalid_sum });
         curr_iter = 0;
         num_invalid = 0;
         invalid_sum = 0;
-        done = true;
+        state = .part2;
         return;
     }
     const r = ranges.items[curr_iter];
@@ -214,8 +206,8 @@ pub fn day2_p1(self: anytype) !void {
     const repeated_len = @divFloor(max_digits, 2);
     const max_seq = std.math.pow(usize, 10, repeated_len + 1);
     const adjust = std.math.pow(usize, 10, repeated_len);
-    std.debug.print("Init {any}--{any}--{any}\n", .{ repeated_len, max_seq, adjust });
-    std.debug.print("{any}-{any}", .{ r.start, r.end });
+    //std.debug.print("Init {any}--{any}--{any}\n", .{ repeated_len, max_seq, adjust });
+    //std.debug.print("{any}-{any}", .{ r.start, r.end });
     for (0..max_seq) |i| {
         const val = i + (i * adjust);
         if (val >= r.start and val <= r.end) {
@@ -228,9 +220,9 @@ pub fn day2_p1(self: anytype) !void {
             if (num_digits % 2 == 0) {
                 num_invalid += 1;
                 invalid_sum += val;
-                std.debug.print(" {d}({d})", .{ val, i });
+                //std.debug.print(" {d}({d})", .{ val, i });
             }
         }
     }
-    std.debug.print("\n", .{});
+    //std.debug.print("\n", .{});
 }

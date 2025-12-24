@@ -169,7 +169,7 @@ pub const Game = struct {
                 day1.day1_update();
             },
             .day2 => {
-                day2.day2_update();
+                day2.day2_update(self);
             },
             .day3 => {
                 day3.day3_update();
@@ -232,6 +232,7 @@ pub const Game = struct {
         try self.tui.add_button(5, 5 + self.tui.items.items[0].button.height + 1, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, "Day 1", .menu);
         self.tui.items.items[self.tui.items.items.len - 1].set_on_click(Self, struct {
             pub fn on_click(s: *Self) void {
+                day2.start();
                 s.state = .day2;
             }
         }.on_click, self);
