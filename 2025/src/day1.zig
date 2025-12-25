@@ -118,40 +118,55 @@ pub fn on_render(self: anytype) void {
     }, self.window);
 }
 
+pub const RunningState = enum {
+    init,
+    full,
+    done,
+};
+
+var state: RunningState = .init;
 var current_rot: i32 = 50;
 var zero_cnt: i32 = 0;
 var part1: i32 = 0;
 var cmds: std.ArrayList(i32) = undefined;
 var iteration: usize = 0;
-var run: bool = false;
 
-pub fn day1_update() void {
-    day1_iter(iteration);
-    if (iteration == cmds.items.len) {
-        std.debug.print("Password for part 1 {d}\nPassword for part 2 {d}\n", .{ part1, zero_cnt });
+pub fn start() void {
+    if (state == .done) {
+        state = .full;
+        current_rot = 50;
+        zero_cnt = 0;
+        part1 = 0;
+        iteration = 0;
     }
 }
 
-pub fn day1_iter(i: usize) void {
-    const start_rot = current_rot;
-    current_rot = @mod(current_rot + cmds.items[i], 100);
-    if (current_rot == 0) {
-        zero_cnt += 1;
-        part1 += 1;
-    } else if (cmds.items[i] < 0 and current_rot > start_rot and start_rot != 0) {
-        zero_cnt += 1;
-    } else if (cmds.items[i] > 0 and current_rot < start_rot and start_rot != 0) {
-        zero_cnt += 1;
-    }
-    if (cmds.items[i] >= 100) {
-        zero_cnt += @divFloor(cmds.items[i], 100);
-    } else if (cmds.items[i] <= -100) {
-        zero_cnt += @divFloor(cmds.items[i], -100);
+pub fn day1_update() void {
+    if (state == .full) {
+        const start_rot = current_rot;
+        current_rot = @mod(current_rot + cmds.items[iteration], 100);
+        if (current_rot == 0) {
+            zero_cnt += 1;
+            part1 += 1;
+        } else if (cmds.items[iteration] < 0 and current_rot > start_rot and start_rot != 0) {
+            zero_cnt += 1;
+        } else if (cmds.items[iteration] > 0 and current_rot < start_rot and start_rot != 0) {
+            zero_cnt += 1;
+        }
+        if (cmds.items[iteration] >= 100) {
+            zero_cnt += @divFloor(cmds.items[iteration], 100);
+        } else if (cmds.items[iteration] <= -100) {
+            zero_cnt += @divFloor(cmds.items[iteration], -100);
+        }
+        if (iteration == cmds.items.len) {
+            state = .done;
+            std.debug.print("Password for part 1 {d}\nPassword for part 2 {d}\n", .{ part1, zero_cnt });
+        }
     }
 }
 
 pub fn deinit() void {
-    if (run) {
+    if (state != .init) {
         cmds.deinit();
     }
 }
@@ -170,7 +185,7 @@ pub fn day1(self: anytype) !void {
         line = line[1..];
         try cmds.append(try std.fmt.parseInt(i32, line, 10) * modifier);
     }
-    run = true;
+    state = .full;
     // std.debug.print("{any}\n", .{cmds.items.len});
     // for (0..cmds.items.len) |i| {
     //     std.debug.print("{any}\n", .{cmds.items[i]});

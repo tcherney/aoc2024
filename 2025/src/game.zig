@@ -226,6 +226,7 @@ pub const Game = struct {
         try self.tui.add_button(5, 5, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, "Day 1", .menu);
         self.tui.items.items[self.tui.items.items.len - 1].set_on_click(Self, struct {
             pub fn on_click(s: *Self) void {
+                day1.start();
                 s.state = .day1;
             }
         }.on_click, self);
