@@ -54,6 +54,21 @@ pub fn deinit(self: anytype) void {
     _ = self;
 }
 
+pub fn update(self: anytype) !void {
+    _ = self;
+}
+
+pub fn start(self: anytype) void {
+    _ = self;
+}
+
+pub const RunnningState = enum {
+    init,
+    part1,
+    part2,
+    done,
+};
+
 pub const Problem = struct {
     numbers: std.ArrayList(usize),
     operation: ?Operation,

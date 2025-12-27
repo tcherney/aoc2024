@@ -87,13 +87,13 @@ pub fn start() void {
     }
 }
 
-pub fn day2_update(self: anytype) void {
+pub fn update(self: anytype) !void {
     switch (state) {
         .part1 => {
-            day2_p1(self);
+            try day2_p1(self);
         },
         .part2 => {
-            day2_p2(self);
+            try day2_p2(self);
         },
         else => {},
     }

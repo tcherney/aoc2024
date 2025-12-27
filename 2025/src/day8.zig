@@ -61,6 +61,21 @@ pub fn deinit(self: anytype) void {
     _ = self;
 }
 
+pub fn update(self: anytype) !void {
+    _ = self;
+}
+
+pub fn start(self: anytype) void {
+    _ = self;
+}
+
+pub const RunnningState = enum {
+    init,
+    part1,
+    part2,
+    done,
+};
+
 pub const JunctionPoint = struct {
     x: f64,
     y: f64,

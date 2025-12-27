@@ -82,6 +82,21 @@ pub fn deinit(self: anytype) void {
     _ = self;
 }
 
+pub fn update(self: anytype) !void {
+    _ = self;
+}
+
+pub fn start(self: anytype) void {
+    _ = self;
+}
+
+pub const RunnningState = enum {
+    init,
+    part1,
+    part2,
+    done,
+};
+
 pub const Node = struct {
     name: []u8,
     indx: usize,
@@ -211,11 +226,11 @@ pub const Graph = struct {
         }
     }
 
-    pub fn add_edge(self: *Graph, start: []const u8, end: []const u8) !void {
+    pub fn add_edge(self: *Graph, s: []const u8, e: []const u8) !void {
         //std.debug.print("Pre {s}, {s}\n", .{ start, end });
         const start_node = blk: {
             for (0..self.nodes.items.len) |i| {
-                if (std.mem.eql(u8, self.nodes.items[i].name, start)) {
+                if (std.mem.eql(u8, self.nodes.items[i].name, s)) {
                     //std.debug.print("Found {s}\n{any}\n", .{ start, self.nodes.items[i] });
                     break :blk i;
                 }
@@ -231,12 +246,12 @@ pub const Graph = struct {
         //std.debug.print("Post 1\n", .{});
         const end_node = blk: {
             for (0..self.nodes.items.len) |i| {
-                if (std.mem.eql(u8, self.nodes.items[i].name, end)) {
+                if (std.mem.eql(u8, self.nodes.items[i].name, e)) {
                     break :blk i;
                 }
             } else {
                 try self.nodes.append(.{
-                    .name = try self.allocator.dupe(u8, end),
+                    .name = try self.allocator.dupe(u8, e),
                     .edges = std.ArrayList(Edge).init(self.allocator),
                     .indx = self.nodes.items.len,
                 });

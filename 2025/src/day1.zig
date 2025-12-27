@@ -141,7 +141,7 @@ pub fn start() void {
     }
 }
 
-pub fn day1_update() void {
+pub fn update(_: anytype) !void {
     if (state == .full) {
         const start_rot = current_rot;
         current_rot = @mod(current_rot + cmds.items[iteration], 100);
@@ -165,7 +165,7 @@ pub fn day1_update() void {
     }
 }
 
-pub fn deinit() void {
+pub fn deinit(_: anytype) void {
     if (state != .init) {
         cmds.deinit();
     }

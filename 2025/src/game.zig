@@ -36,7 +36,7 @@ pub const Game = struct {
     world: std.ArrayList(std.ArrayList(u8)) = undefined,
     world_buffer: std.ArrayList(std.ArrayList(u8)) = undefined,
     viewport: common.Rectangle = undefined,
-    state: State = .start,
+    state: State = .menu,
     world_steps: u32 = 0,
     tui: TUI,
     pub const State = enum {
@@ -51,6 +51,7 @@ pub const Game = struct {
         day9,
         day10,
         day11,
+        day12,
         menu,
     };
     const Self = @This();
@@ -150,7 +151,6 @@ pub const Game = struct {
             .menu => {
                 try self.tui.draw(&self.e.renderer, self.window, 0, 0, self.state);
             },
-            else => {},
         }
         try self.e.renderer.ascii.flip(self.window, self.viewport);
     }
@@ -166,40 +166,40 @@ pub const Game = struct {
     pub fn update(self: *Self) !void {
         switch (self.state) {
             .day1 => {
-                day1.day1_update();
+                try day1.update(self);
             },
             .day2 => {
-                day2.day2_update(self);
+                try day2.update(self);
             },
             .day3 => {
-                day3.day3_update();
+                try day3.update(self);
             },
             .day4 => {
-                day4.day4_update();
+                try day4.update(self);
             },
             .day5 => {
-                day5.day5_update();
+                try day5.update(self);
             },
             .day6 => {
-                day6.day6_update();
+                try day6.update(self);
             },
             .day7 => {
-                day7.day7_update();
+                try day7.update(self);
             },
             .day8 => {
-                day8.day8_update();
+                try day8.update(self);
             },
             .day9 => {
-                day9.day9_update();
+                try day9.update(self);
             },
             .day10 => {
-                day10.day10_update();
+                try day10.update(self);
             },
             .day11 => {
-                day11.day11_update();
+                try day11.update(self);
             },
             .day12 => {
-                day12.day12_update();
+                try day12.update(self);
             },
             else => {},
         }

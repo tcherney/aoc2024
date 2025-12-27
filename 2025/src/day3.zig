@@ -37,6 +37,21 @@ pub fn deinit(self: anytype) void {
     _ = self;
 }
 
+pub fn update(self: anytype) !void {
+    _ = self;
+}
+
+pub fn start(self: anytype) void {
+    _ = self;
+}
+
+pub const RunnningState = enum {
+    init,
+    part1,
+    part2,
+    done,
+};
+
 pub fn update_and_clear(arr: []usize, i: usize, val: usize) void {
     arr[i] = val;
     for (i + 1..arr.len) |j| {

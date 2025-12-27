@@ -94,6 +94,21 @@ pub fn deinit(self: anytype) void {
     _ = self;
 }
 
+pub fn update(self: anytype) !void {
+    _ = self;
+}
+
+pub fn start(self: anytype) void {
+    _ = self;
+}
+
+pub const RunnningState = enum {
+    init,
+    part1,
+    part2,
+    done,
+};
+
 pub fn day12_p1(_: anytype) !void {
     const f = try std.fs.cwd().openFile("inputs/day12/input.txt", .{});
     defer f.close();

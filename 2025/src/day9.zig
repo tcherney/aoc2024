@@ -247,6 +247,21 @@ pub const Line = struct {
     }
 };
 
+pub fn update(self: anytype) !void {
+    _ = self;
+}
+
+pub fn start(self: anytype) void {
+    _ = self;
+}
+
+pub const RunnningState = enum {
+    init,
+    part1,
+    part2,
+    done,
+};
+
 var world: []u8 = undefined;
 var width: u32 = undefined;
 var height: u32 = undefined;
