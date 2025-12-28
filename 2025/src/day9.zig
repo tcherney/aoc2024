@@ -272,7 +272,7 @@ var y_coord: std.AutoHashMap(u64, std.ArrayList(i64)) = undefined;
 pub var part1: bool = false;
 pub var part2: bool = false;
 
-pub fn on_render(self: anytype, _: u64) void {
+pub fn on_render(self: anytype) void {
     //TODO highlight rectangles as they are checked
     for (lines.items) |l| {
         if (l.p1.x == l.p2.x) {

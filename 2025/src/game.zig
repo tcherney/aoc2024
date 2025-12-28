@@ -83,7 +83,15 @@ pub const Game = struct {
     //TODO handle mouse/touch
     pub fn on_mouse_change(self: *Self, mouse_event: engine.MouseEvent) void {
         GAME_LOG.info("{any}\n", .{mouse_event});
-        _ = self;
+        switch (self.state) {
+            .menu => {
+                if (mouse_event.clicked) {
+                    GAME_LOG.info("Checking tui\n", .{});
+                    self.tui.mouse_input(mouse_event.x, mouse_event.y, self.state);
+                }
+            },
+            else => {},
+        }
     }
     pub fn on_window_change(self: *Self, win_size: engine.WindowSize) void {
         self.lock.lock();
@@ -106,7 +114,7 @@ pub const Game = struct {
 
     var scratch_buffer: [32]u8 = undefined;
     pub fn on_render(self: *Self, _: u64) !void {
-        if (!day9.part2) return;
+        std.debug.print("Rendering State {any}\n", .{self.state});
         self.e.renderer.ascii.set_bg(0, 0, 0, self.window);
         for (0..self.window.ascii_buffer.len) |i| {
             self.window.ascii_buffer[i] = ' ';
@@ -116,7 +124,7 @@ pub const Game = struct {
                 day1.on_render(self);
             },
             .day2 => {
-                day2.on_render(self);
+                try day2.on_render(self);
             },
             .day3 => {
                 day3.on_render(self);
@@ -153,6 +161,27 @@ pub const Game = struct {
             },
         }
         try self.e.renderer.ascii.flip(self.window, self.viewport);
+    }
+
+    pub fn em_click_handler(event_type: c_int, event: ?*const emcc.EmsdkWrapper.EmscriptenMouseEvent, ctx: ?*anyopaque) callconv(.C) bool {
+        GAME_LOG.info("event_type {any}\n", .{event_type});
+        GAME_LOG.info("event {any}\n", .{event});
+        const self: *Self = @ptrCast(@alignCast(ctx));
+        const width = 780;
+        const height = 550;
+        const scale_x: f64 = @as(f64, @floatFromInt(event.?.targetX)) / @as(f64, @floatFromInt(width));
+        const scale_y: f64 = @as(f64, @floatFromInt(event.?.targetY)) / @as(f64, @floatFromInt(height));
+        const res_x: i16 = @intFromFloat(scale_x * @as(f64, @floatFromInt(self.e.renderer.pixel.pixel_width)));
+        const res_y: i16 = @intFromFloat((scale_y * @as(f64, @floatFromInt(self.e.renderer.pixel.pixel_height))) / 2);
+        self.on_mouse_change(.{
+            .x = res_x,
+            .y = res_y,
+            .clicked = (event.?.buttons & 0x03) > 0,
+            .scroll_up = false,
+            .scroll_down = false,
+            .ctrl_pressed = false,
+        });
+        return true;
     }
 
     pub fn em_key_handler(event_type: c_int, event: ?*const emcc.EmsdkWrapper.EmscriptenKeyboardEvent, ctx: ?*anyopaque) callconv(.C) bool {
@@ -230,72 +259,75 @@ pub const Game = struct {
                 s.state = .day1;
             }
         }.on_click, self);
-        try self.tui.add_button(5, 5 + self.tui.items.items[0].button.height + 1, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, "Day 1", .menu);
+        try self.tui.add_button(5, 5 + self.tui.items.items[0].button.height + 1, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, "Day 2", .menu);
         self.tui.items.items[self.tui.items.items.len - 1].set_on_click(Self, struct {
             pub fn on_click(s: *Self) void {
                 day2.start();
                 s.state = .day2;
             }
         }.on_click, self);
-        try self.tui.add_button(5, 5 + (self.tui.items.items[0].button.height + 1) * 2, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, "Day 1", .menu);
+        try self.tui.add_button(5, 5 + (self.tui.items.items[0].button.height + 1) * 2, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, "Day 3", .menu);
         self.tui.items.items[self.tui.items.items.len - 1].set_on_click(Self, struct {
             pub fn on_click(s: *Self) void {
                 s.state = .day3;
             }
         }.on_click, self);
-        try self.tui.add_button(5, 5 + (self.tui.items.items[0].button.height + 1) * 3, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, "Day 1", .menu);
+        try self.tui.add_button(5, 5 + (self.tui.items.items[0].button.height + 1) * 3, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, "Day 4", .menu);
         self.tui.items.items[self.tui.items.items.len - 1].set_on_click(Self, struct {
             pub fn on_click(s: *Self) void {
                 s.state = .day4;
             }
         }.on_click, self);
-        try self.tui.add_button(5, 5 + (self.tui.items.items[0].button.height + 1) * 4, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, "Day 1", .menu);
+        try self.tui.add_button(5, 5 + (self.tui.items.items[0].button.height + 1) * 4, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, "Day 5", .menu);
         self.tui.items.items[self.tui.items.items.len - 1].set_on_click(Self, struct {
             pub fn on_click(s: *Self) void {
                 s.state = .day5;
             }
         }.on_click, self);
-        try self.tui.add_button(5, 5 + (self.tui.items.items[0].button.height + 1) * 5, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, "Day 1", .menu);
+        try self.tui.add_button(5, 5 + (self.tui.items.items[0].button.height + 1) * 5, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, "Day 6", .menu);
         self.tui.items.items[self.tui.items.items.len - 1].set_on_click(Self, struct {
             pub fn on_click(s: *Self) void {
                 s.state = .day6;
             }
         }.on_click, self);
-        try self.tui.add_button(5 + self.tui.items.items[0].button.width + 1, 5 + (self.tui.items.items[0].button.height + 1), null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, "Day 1", .menu);
+        try self.tui.add_button(5 + self.tui.items.items[0].button.width + 1, 5, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, "Day 7", .menu);
         self.tui.items.items[self.tui.items.items.len - 1].set_on_click(Self, struct {
             pub fn on_click(s: *Self) void {
                 s.state = .day7;
             }
         }.on_click, self);
-        try self.tui.add_button(5 + self.tui.items.items[0].button.width + 1, 5 + (self.tui.items.items[0].button.height + 1) * 2, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, "Day 1", .menu);
+        try self.tui.add_button(5 + self.tui.items.items[0].button.width + 1, 5 + (self.tui.items.items[0].button.height + 1), null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, "Day 8", .menu);
         self.tui.items.items[self.tui.items.items.len - 1].set_on_click(Self, struct {
             pub fn on_click(s: *Self) void {
                 s.state = .day8;
             }
         }.on_click, self);
-        try self.tui.add_button(5 + self.tui.items.items[0].button.width + 1, 5 + (self.tui.items.items[0].button.height + 1) * 3, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, "Day 1", .menu);
+        try self.tui.add_button(5 + self.tui.items.items[0].button.width + 1, 5 + (self.tui.items.items[0].button.height + 1) * 2, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, "Day 9", .menu);
         self.tui.items.items[self.tui.items.items.len - 1].set_on_click(Self, struct {
             pub fn on_click(s: *Self) void {
                 s.state = .day9;
             }
         }.on_click, self);
-        try self.tui.add_button(5 + self.tui.items.items[0].button.width + 1, 5 + (self.tui.items.items[0].button.height + 1) * 4, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, "Day 1", .menu);
+        try self.tui.add_button(5 + self.tui.items.items[0].button.width + 1, 5 + (self.tui.items.items[0].button.height + 1) * 3, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, "Day 10", .menu);
         self.tui.items.items[self.tui.items.items.len - 1].set_on_click(Self, struct {
             pub fn on_click(s: *Self) void {
                 s.state = .day10;
             }
         }.on_click, self);
-        try self.tui.add_button(5 + self.tui.items.items[0].button.width + 1, 5 + (self.tui.items.items[0].button.height + 1) * 5, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, "Day 1", .menu);
+        try self.tui.add_button(5 + self.tui.items.items[0].button.width + 1, 5 + (self.tui.items.items[0].button.height + 1) * 4, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, "Day 11", .menu);
         self.tui.items.items[self.tui.items.items.len - 1].set_on_click(Self, struct {
             pub fn on_click(s: *Self) void {
                 s.state = .day11;
             }
         }.on_click, self);
+        try self.tui.add_button(5 + self.tui.items.items[0].button.width + 1, 5 + (self.tui.items.items[0].button.height + 1) * 5, null, null, common.Colors.WHITE, common.Colors.BLUE, common.Colors.MAGENTA, "Day 12", .menu);
+        self.tui.items.items[self.tui.items.items.len - 1].set_on_click(Self, struct {
+            pub fn on_click(s: *Self) void {
+                s.state = .day12;
+            }
+        }.on_click, self);
         self.e.set_fps(60);
         try common.gen_rand();
-        // try day9.day9_p2(self);
-        // if (day9.part2) return;
-        self.state = .menu;
         try self.e.start();
         if (builtin.os.tag == .emscripten) {
             const res = emcc.EmsdkWrapper.emscripten_set_keydown_callback("body", self, true, em_key_handler);

@@ -113,11 +113,12 @@ def replace_molecule_iter(input_str: str, output_str: str) -> int:
 result = replace_molecule_iter("HOHOHO", "e")
 while(result == sys.maxsize):
     result = replace_molecule_iter("HOHOHO", "e")
+    #print(result)
 print(result)
 
-solution_found = False
-molecules.sort(key=lambda x: len(x[1]))
-print(replace_molecule_backwards("HOHOHO","e", 0))
+# solution_found = False
+# molecules.sort(key=lambda x: len(x[1]))
+# print(replace_molecule_backwards("HOHOHO","e", 0))
 
 with open("input.txt", 'r') as f:
     molecules.clear()
@@ -134,8 +135,9 @@ with open("input.txt", 'r') as f:
 result = replace_molecule_iter(start_string, "e")
 while(result == sys.maxsize):
     result = replace_molecule_iter(start_string, "e")
+    #print(result)
 print(result)
 
-solution_found = False
-molecules.sort(key=lambda x: len(x[1]))
-print(replace_molecule_backwards(start_string,"e", 0))
+# solution_found = False
+# molecules.sort(key=lambda x: len(x[1]))
+# print(replace_molecule_backwards(start_string,"e", 0))

@@ -36,15 +36,20 @@
 pub const Range = struct {
     start: usize,
     end: usize,
+    valid: bool,
 };
 
 const std = @import("std");
 const common = @import("common");
 
-pub fn on_render(self: anytype) void {
+pub fn on_render(self: anytype) !void {
     //TODO display list, highlight valid green, invalid red, show total being added
     if (state == .part1 or state == .part2) {
-        self.e.renderer.ascii.draw_symbol(0, @bitCast(self.window.height / 2), '7', common.Colors.GREEN, self.window);
+        self.e.renderer.ascii.draw_text("Day 2", 5, 5, common.Colors.GREEN, self.window);
+        for (0..ranges.items.len) |i| {
+            const offset = @as(i32, @bitCast(@as(u32, @intCast(i))));
+            self.e.renderer.ascii.draw_text(try std.fmt.bufPrint(&cpy_scratch, "{any}-{any}", .{ ranges.items[i].start, ranges.items[i].end }), 5, offset + 7, if (ranges.items[i].valid) common.Colors.GREEN else common.Colors.RED, self.window);
+        }
     }
 }
 
@@ -70,7 +75,7 @@ pub fn init(self: anytype) !void {
         if (std.mem.indexOf(u8, line, "-") == null) continue;
         std.debug.print("{s}\n", .{line});
         var it = std.mem.splitScalar(u8, line, '-');
-        try ranges.append(.{ .start = try std.fmt.parseInt(usize, it.next().?, 10), .end = try std.fmt.parseInt(usize, it.next().?, 10) });
+        try ranges.append(.{ .start = try std.fmt.parseInt(usize, it.next().?, 10), .end = try std.fmt.parseInt(usize, it.next().?, 10), .valid = true });
     }
     num_map = std.AutoHashMap(usize, bool).init(self.allocator);
     num_invalid = 0;
@@ -89,6 +94,9 @@ pub fn start() void {
 
 pub fn update(self: anytype) !void {
     switch (state) {
+        .init => {
+            try init(self);
+        },
         .part1 => {
             try day2_p1(self);
         },
@@ -116,6 +124,9 @@ pub fn day2_p2(self: anytype) !void {
         num_invalid = 0;
         invalid_sum = 0;
         state = .done;
+        for (0..ranges.items.len) |i| {
+            ranges.items[i].valid = true;
+        }
         return;
     }
     const r = ranges.items[curr_iter];
@@ -170,6 +181,7 @@ pub fn day2_p2(self: anytype) !void {
                     try num_map.put(num_val, true);
                     num_invalid += 1;
                     invalid_sum += num_val;
+                    ranges.items[curr_iter - 1].valid = false;
                     //std.debug.print(" {d}({d})", .{ num_val, i });
                     break;
                 }
@@ -187,6 +199,9 @@ pub fn day2_p1(_: anytype) !void {
         num_invalid = 0;
         invalid_sum = 0;
         state = .part2;
+        for (0..ranges.items.len) |i| {
+            ranges.items[i].valid = true;
+        }
         return;
     }
     const r = ranges.items[curr_iter];
@@ -220,6 +235,7 @@ pub fn day2_p1(_: anytype) !void {
             if (num_digits % 2 == 0) {
                 num_invalid += 1;
                 invalid_sum += val;
+                ranges.items[curr_iter - 1].valid = false;
                 //std.debug.print(" {d}({d})", .{ val, i });
             }
         }
