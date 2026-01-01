@@ -30,7 +30,7 @@ pub const Game = struct {
     e: Engine = undefined,
     allocator: std.mem.Allocator = undefined,
     //frame_limit: u64 = 16_666_667,
-    frame_limit: u64 = std.time.ns_per_s * 2,
+    frame_limit: u64 = 1500000,
     lock: std.Thread.Mutex = undefined,
     window: engine.Texture,
     world: std.ArrayList(std.ArrayList(u8)) = undefined,
@@ -80,7 +80,7 @@ pub const Game = struct {
         day11.deinit(self);
         day12.deinit(self);
     }
-    //TODO handle mouse/touch
+
     pub fn on_mouse_change(self: *Self, mouse_event: engine.MouseEvent) void {
         GAME_LOG.info("{any}\n", .{mouse_event});
         switch (self.state) {
@@ -114,20 +114,20 @@ pub const Game = struct {
 
     var scratch_buffer: [32]u8 = undefined;
     pub fn on_render(self: *Self, _: u64) !void {
-        std.debug.print("Rendering State {any}\n", .{self.state});
+        //std.debug.print("Rendering State {any}\n", .{self.state});
         self.e.renderer.ascii.set_bg(0, 0, 0, self.window);
         for (0..self.window.ascii_buffer.len) |i| {
             self.window.ascii_buffer[i] = ' ';
         }
         switch (self.state) {
             .day1 => {
-                day1.on_render(self);
+                try day1.on_render(self);
             },
             .day2 => {
                 try day2.on_render(self);
             },
             .day3 => {
-                day3.on_render(self);
+                try day3.on_render(self);
             },
             .day4 => {
                 day4.on_render(self);
@@ -326,7 +326,7 @@ pub const Game = struct {
                 s.state = .day12;
             }
         }.on_click, self);
-        self.e.set_fps(60);
+        self.e.set_fps(10);
         try common.gen_rand();
         try self.e.start();
         if (builtin.os.tag == .emscripten) {

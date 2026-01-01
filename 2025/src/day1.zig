@@ -89,29 +89,32 @@
 const std = @import("std");
 const common = @import("common");
 
-pub fn on_render(self: anytype) void {
-    //TODO lock dial visualization
-    //self.e.renderer.ascii.draw_symbol(@intFromFloat(x), @intFromFloat(y), 'X', common.Colors.GREEN, self.window);
+pub fn on_render(self: anytype) !void {
+    self.e.renderer.ascii.draw_text("Day 1", 0, 0, common.Colors.GREEN, self.window);
+    self.e.renderer.ascii.draw_text(try std.fmt.bufPrint(&cpy_scratch, "Current Rotation: {d}, Part1: {d}, Zero: {d}", .{ current_rot, part1, zero_cnt }), 0, 1, common.Colors.GREEN, self.window);
     const mid_dial = common.Point(2, i32){
         .x = @bitCast(self.window.width / 2),
         .y = @bitCast(self.window.height / 2),
     };
-    const end_dial = common.Point(2, i32){ .x = @bitCast(self.window.width / 2), .y = 5 };
-    self.e.renderer.ascii.draw_symbol(0, @bitCast(self.window.height / 2), '7', common.Colors.GREEN, self.window);
-    self.e.renderer.ascii.draw_symbol(1, @bitCast(self.window.height / 2), '5', common.Colors.GREEN, self.window);
+    const end_dial = common.Point(2, i32){ .x = @bitCast(self.window.width / 2), .y = 1 };
+    self.e.renderer.ascii.draw_symbol(@bitCast(self.window.width / 2), @bitCast(self.window.height - 1), '5', common.Colors.GREEN, self.window);
+    self.e.renderer.ascii.draw_symbol(@bitCast((self.window.width / 2) + 1), @bitCast(self.window.height - 1), '0', common.Colors.GREEN, self.window);
 
-    self.e.renderer.ascii.draw_symbol(@bitCast(self.window.width - 5), @bitCast(self.window.height / 2), '2', common.Colors.GREEN, self.window);
-    self.e.renderer.ascii.draw_symbol(@bitCast(self.window.width - 4), @bitCast(self.window.height / 2), '5', common.Colors.GREEN, self.window);
+    self.e.renderer.ascii.draw_symbol(@bitCast((self.window.width / 2) - (self.window.height / 2)), @bitCast(self.window.height / 2), '2', common.Colors.GREEN, self.window);
+    self.e.renderer.ascii.draw_symbol(@bitCast((self.window.width / 2) - (self.window.height / 2) + 1), @bitCast(self.window.height / 2), '5', common.Colors.GREEN, self.window);
 
-    self.e.renderer.ascii.draw_symbol(@bitCast(self.window.width / 2), @bitCast(self.window.height / 2), '5', common.Colors.GREEN, self.window);
-    self.e.renderer.ascii.draw_symbol(@bitCast((self.window.width / 2) + 1), @bitCast(self.window.height / 2), '0', common.Colors.GREEN, self.window);
+    self.e.renderer.ascii.draw_symbol(@bitCast((self.window.width / 2) + (self.window.height / 2)), @bitCast(self.window.height / 2), '7', common.Colors.GREEN, self.window);
+    self.e.renderer.ascii.draw_symbol(@bitCast((self.window.width / 2) + (self.window.height / 2) + 1), @bitCast(self.window.height / 2), '5', common.Colors.GREEN, self.window);
 
     self.e.renderer.ascii.draw_symbol(@bitCast(self.window.width / 2), 0, '0', common.Colors.GREEN, self.window);
 
-    //TODO use sin/cos to move end dial to the correct location
-    //TODO this function isn't implemented for ascii
-    const x = std.math.cos(@as(f64, @floatFromInt(current_rot)) * 2 * std.math.pi / 100.0) * @as(f64, @floatFromInt(end_dial.x));
-    const y = std.math.sin(@as(f64, @floatFromInt(current_rot)) * 2 * std.math.pi / 100.0) * @as(f64, @floatFromInt(end_dial.y));
+    const angle = (@as(f64, @floatFromInt(current_rot)) / 100.0) * 2 * std.math.pi;
+    const x_0 = @as(f64, @floatFromInt(end_dial.x));
+    const x_c = @as(f64, @floatFromInt(mid_dial.x));
+    const y_0 = @as(f64, @floatFromInt(end_dial.y));
+    const y_c = @as(f64, @floatFromInt(mid_dial.y));
+    const x = std.math.cos(angle) * (x_0 - x_c) - std.math.sin(angle) * (y_0 - y_c) + x_c;
+    const y = std.math.sin(angle) * (x_0 - x_c) + std.math.cos(angle) * (y_0 - y_c) + y_c;
     self.e.renderer.ascii.draw_line('#', common.Colors.GREEN, mid_dial, .{
         .x = @intFromFloat(x),
         .y = @intFromFloat(y),
@@ -130,6 +133,7 @@ var zero_cnt: i32 = 0;
 var part1: i32 = 0;
 var cmds: std.ArrayList(i32) = undefined;
 var iteration: usize = 0;
+var cpy_scratch: [256]u8 = undefined;
 
 pub fn start() void {
     if (state == .done) {
@@ -141,27 +145,35 @@ pub fn start() void {
     }
 }
 
-pub fn update(_: anytype) !void {
-    if (state == .full) {
-        const start_rot = current_rot;
-        current_rot = @mod(current_rot + cmds.items[iteration], 100);
-        if (current_rot == 0) {
-            zero_cnt += 1;
-            part1 += 1;
-        } else if (cmds.items[iteration] < 0 and current_rot > start_rot and start_rot != 0) {
-            zero_cnt += 1;
-        } else if (cmds.items[iteration] > 0 and current_rot < start_rot and start_rot != 0) {
-            zero_cnt += 1;
-        }
-        if (cmds.items[iteration] >= 100) {
-            zero_cnt += @divFloor(cmds.items[iteration], 100);
-        } else if (cmds.items[iteration] <= -100) {
-            zero_cnt += @divFloor(cmds.items[iteration], -100);
-        }
-        if (iteration == cmds.items.len) {
-            state = .done;
-            std.debug.print("Password for part 1 {d}\nPassword for part 2 {d}\n", .{ part1, zero_cnt });
-        }
+pub fn update(self: anytype) !void {
+    switch (state) {
+        .init => {
+            try init(self);
+        },
+        .full => {
+            std.debug.print("Current Rotation {d}, iteration {d}\n", .{ current_rot, iteration });
+            const start_rot = current_rot;
+            current_rot = @mod(current_rot + cmds.items[iteration], 100);
+            if (current_rot == 0) {
+                zero_cnt += 1;
+                part1 += 1;
+            } else if (cmds.items[iteration] < 0 and current_rot > start_rot and start_rot != 0) {
+                zero_cnt += 1;
+            } else if (cmds.items[iteration] > 0 and current_rot < start_rot and start_rot != 0) {
+                zero_cnt += 1;
+            }
+            if (cmds.items[iteration] >= 100) {
+                zero_cnt += @divFloor(cmds.items[iteration], 100);
+            } else if (cmds.items[iteration] <= -100) {
+                zero_cnt += @divFloor(cmds.items[iteration], -100);
+            }
+            iteration += 1;
+            if (iteration == cmds.items.len) {
+                state = .done;
+                std.debug.print("Password for part 1 {d}\nPassword for part 2 {d}\n", .{ part1, zero_cnt });
+            }
+        },
+        else => {},
     }
 }
 
@@ -171,7 +183,7 @@ pub fn deinit(_: anytype) void {
     }
 }
 
-pub fn day1(self: anytype) !void {
+pub fn init(self: anytype) !void {
     const f = try std.fs.cwd().openFile("inputs/day1/input.txt", .{});
     defer f.close();
     var buf: [65536]u8 = undefined;

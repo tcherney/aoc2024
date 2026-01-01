@@ -28,21 +28,65 @@
 const std = @import("std");
 const common = @import("common");
 
-pub fn on_render(self: anytype) void {
+var scratch_buffer: [1024]u8 = undefined;
+pub fn on_render(self: anytype) !void {
     //TODO show joltage creation high light chosen numbers green?
-    self.e.renderer.ascii.draw_symbol(0, @bitCast(self.window.height / 2), '7', common.Colors.GREEN, self.window);
+    //TODO this basic display should be how we handle the rest of the days before we figure out specific visualizations
+    const str = try std.fmt.bufPrint(&scratch_buffer, "Day 3\nPart 1: {d}\nPart 2: {d}", .{ part1, part2 });
+    self.e.renderer.ascii.draw_text(str, 5, 0, common.Colors.GREEN, self.window);
 }
 
-pub fn deinit(self: anytype) void {
-    _ = self;
+pub fn deinit(_: anytype) void {
+    if (state != .init) {
+        for (0..banks.items.len) |i| {
+            banks.items[i].deinit();
+        }
+        banks.deinit();
+    }
 }
 
 pub fn update(self: anytype) !void {
-    _ = self;
+    switch (state) {
+        .part1 => {
+            try day3_p1();
+        },
+        .part2 => {
+            try day3_p2();
+        },
+        .init => {
+            try init(self);
+        },
+        else => {},
+    }
 }
 
-pub fn start(self: anytype) void {
-    _ = self;
+pub fn start(_: anytype) void {
+    switch (state) {
+        .done => {
+            part1 = 0;
+            part2 = 0;
+            state = .part1;
+        },
+        else => {},
+    }
+}
+
+pub fn init(self: anytype) !void {
+    const f = try std.fs.cwd().openFile("inputs/day3/input.txt", .{});
+    defer f.close();
+    var buf: [65536]u8 = undefined;
+    banks = std.ArrayList(std.ArrayList(usize)).init(self.allocator);
+    while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |unfiltered| {
+        var line = unfiltered;
+        if (std.mem.indexOfScalar(u8, unfiltered, '\r')) |indx| {
+            line = unfiltered[0..indx];
+        }
+        try banks.append(std.ArrayList(usize).init(self.allocator));
+        for (line) |c| {
+            try banks.items[banks.items.len - 1].append(c - 48);
+        }
+    }
+    state = .part1;
 }
 
 pub const RunnningState = enum {
@@ -51,6 +95,11 @@ pub const RunnningState = enum {
     part2,
     done,
 };
+
+var state: RunnningState = .init;
+var part1: usize = 0;
+var part2: usize = 0;
+var banks: std.ArrayList(std.ArrayList(usize)) = undefined;
 
 pub fn update_and_clear(arr: []usize, i: usize, val: usize) void {
     arr[i] = val;
@@ -68,22 +117,7 @@ pub fn calc_largest(arr: []usize) usize {
     return total;
 }
 
-pub fn day3_p2(self: anytype) !void {
-    const f = try std.fs.cwd().openFile("inputs/day3/input.txt", .{});
-    defer f.close();
-    var buf: [65536]u8 = undefined;
-    var banks = std.ArrayList(std.ArrayList(usize)).init(self.allocator);
-    defer banks.deinit();
-    while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |unfiltered| {
-        var line = unfiltered;
-        if (std.mem.indexOfScalar(u8, unfiltered, '\r')) |indx| {
-            line = unfiltered[0..indx];
-        }
-        try banks.append(std.ArrayList(usize).init(self.allocator));
-        for (line) |c| {
-            try banks.items[banks.items.len - 1].append(c - 48);
-        }
-    }
+pub fn print_banks() void {
     std.debug.print("Banks\n", .{});
     for (0..banks.items.len) |i| {
         for (0..banks.items[i].items.len) |j| {
@@ -91,8 +125,10 @@ pub fn day3_p2(self: anytype) !void {
         }
         std.debug.print("\n", .{});
     }
+}
 
-    var total: usize = 0;
+pub fn day3_p2() !void {
+    part2 = 0;
     for (0..banks.items.len) |i| {
         var highest: [12]usize = [_]usize{0} ** 12;
         const bank_len = banks.items[i].items.len;
@@ -107,40 +143,12 @@ pub fn day3_p2(self: anytype) !void {
             }
         }
         const largest = calc_largest(&highest);
-        std.debug.print("{d}: {d}\n", .{ i, largest });
-        total += largest;
+        part2 += largest;
     }
-    std.debug.print("Total joltage: {d}\n", .{total});
-
-    for (0..banks.items.len) |i| {
-        banks.items[i].deinit();
-    }
+    state = .done;
 }
-pub fn day3_p1(self: anytype) !void {
-    const f = try std.fs.cwd().openFile("inputs/day3/input.txt", .{});
-    defer f.close();
-    var buf: [65536]u8 = undefined;
-    var banks = std.ArrayList(std.ArrayList(usize)).init(self.allocator);
-    defer banks.deinit();
-    while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |unfiltered| {
-        var line = unfiltered;
-        if (std.mem.indexOfScalar(u8, unfiltered, '\r')) |indx| {
-            line = unfiltered[0..indx];
-        }
-        try banks.append(std.ArrayList(usize).init(self.allocator));
-        for (line) |c| {
-            try banks.items[banks.items.len - 1].append(c - 48);
-        }
-    }
-    std.debug.print("Banks\n", .{});
-    for (0..banks.items.len) |i| {
-        for (0..banks.items[i].items.len) |j| {
-            std.debug.print("{d}", .{banks.items[i].items[j]});
-        }
-        std.debug.print("\n", .{});
-    }
-
-    var total: usize = 0;
+pub fn day3_p1() !void {
+    part1 = 0;
     for (0..banks.items.len) |i| {
         var first: usize = 0;
         var second: usize = 0;
@@ -155,11 +163,7 @@ pub fn day3_p1(self: anytype) !void {
         }
         const largest = first * 10 + second;
         std.debug.print("{d}\n", .{largest});
-        total += largest;
+        part1 += largest;
     }
-    std.debug.print("Total joltage: {d}\n", .{total});
-
-    for (0..banks.items.len) |i| {
-        banks.items[i].deinit();
-    }
+    state = .part2;
 }

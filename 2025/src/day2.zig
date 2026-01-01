@@ -43,12 +43,23 @@ const std = @import("std");
 const common = @import("common");
 
 pub fn on_render(self: anytype) !void {
-    //TODO display list, highlight valid green, invalid red, show total being added
-    if (state == .part1 or state == .part2) {
-        self.e.renderer.ascii.draw_text("Day 2", 5, 5, common.Colors.GREEN, self.window);
+    if (state != .init) {
+        self.e.renderer.ascii.draw_text(try std.fmt.bufPrint(&cpy_scratch, "Day 2 Part1: {d} Part2: {d}", .{ invalid_part1, invalid_part2 }), 5, 0, common.Colors.GREEN, self.window);
+        var x_offset: i32 = 0;
+        var y_offset: i32 = 0;
+        var max_width: i32 = 0;
         for (0..ranges.items.len) |i| {
-            const offset = @as(i32, @bitCast(@as(u32, @intCast(i))));
-            self.e.renderer.ascii.draw_text(try std.fmt.bufPrint(&cpy_scratch, "{any}-{any}", .{ ranges.items[i].start, ranges.items[i].end }), 5, offset + 7, if (ranges.items[i].valid) common.Colors.GREEN else common.Colors.RED, self.window);
+            if (y_offset + 2 >= self.e.renderer.ascii.terminal.size.height) {
+                y_offset = 0;
+                x_offset += max_width + 1;
+                max_width = 0;
+            }
+            const y = 2 + y_offset;
+            const x = 1 + x_offset;
+            const str = try std.fmt.bufPrint(&cpy_scratch, "{any}-{any}", .{ ranges.items[i].start, ranges.items[i].end });
+            max_width = @max(max_width, @as(i32, @bitCast(@as(u32, @intCast(str.len)))));
+            self.e.renderer.ascii.draw_text(str, x, y, if (ranges.items[i].valid) common.Colors.GREEN else common.Colors.RED, self.window);
+            y_offset += 1;
         }
     }
 }
@@ -79,13 +90,21 @@ pub fn init(self: anytype) !void {
     }
     num_map = std.AutoHashMap(usize, bool).init(self.allocator);
     num_invalid = 0;
-    invalid_sum = 0;
+    invalid_part1 = 0;
+    invalid_part2 = 0;
     state = .part1;
 }
 
 pub fn start() void {
     switch (state) {
         .done => {
+            curr_iter = 0;
+            num_invalid = 0;
+            invalid_part2 = 0;
+            invalid_part1 = 0;
+            for (0..ranges.items.len) |i| {
+                ranges.items[i].valid = true;
+            }
             state = .part1;
         },
         else => {},
@@ -114,19 +133,14 @@ var ranges: std.ArrayList(Range) = undefined;
 var num_map: std.AutoHashMap(usize, bool) = undefined;
 var curr_iter: usize = 0;
 var num_invalid: usize = 0;
-var invalid_sum: usize = 0;
+var invalid_part2: usize = 0;
+var invalid_part1: usize = 0;
 var state: RunningState = .init;
 
 pub fn day2_p2(self: anytype) !void {
     if (curr_iter >= ranges.items.len) {
-        std.debug.print("Part 2: Number of invalid ids {d}, total {d}\n", .{ num_invalid, invalid_sum });
-        curr_iter = 0;
-        num_invalid = 0;
-        invalid_sum = 0;
+        std.debug.print("Part 2: Number of invalid ids {d}, total {d}\n", .{ num_invalid, invalid_part2 });
         state = .done;
-        for (0..ranges.items.len) |i| {
-            ranges.items[i].valid = true;
-        }
         return;
     }
     const r = ranges.items[curr_iter];
@@ -162,7 +176,7 @@ pub fn day2_p2(self: anytype) !void {
                 if (num_digits % 2 == 0) {
                     try num_map.put(val, true);
                     num_invalid += 1;
-                    invalid_sum += val;
+                    invalid_part2 += val;
                     //std.debug.print(" {d}({d})", .{ val, i });
                     continue;
                 }
@@ -180,7 +194,7 @@ pub fn day2_p2(self: anytype) !void {
                 if (!num_map.contains(num_val)) {
                     try num_map.put(num_val, true);
                     num_invalid += 1;
-                    invalid_sum += num_val;
+                    invalid_part2 += num_val;
                     ranges.items[curr_iter - 1].valid = false;
                     //std.debug.print(" {d}({d})", .{ num_val, i });
                     break;
@@ -194,10 +208,9 @@ pub fn day2_p2(self: anytype) !void {
 
 pub fn day2_p1(_: anytype) !void {
     if (curr_iter >= ranges.items.len) {
-        std.debug.print("Part 1: Number of invalid ids {d}, total {d}\n", .{ num_invalid, invalid_sum });
+        std.debug.print("Part 1: Number of invalid ids {d}, total {d}\n", .{ num_invalid, invalid_part1 });
         curr_iter = 0;
         num_invalid = 0;
-        invalid_sum = 0;
         state = .part2;
         for (0..ranges.items.len) |i| {
             ranges.items[i].valid = true;
@@ -234,7 +247,7 @@ pub fn day2_p1(_: anytype) !void {
             }
             if (num_digits % 2 == 0) {
                 num_invalid += 1;
-                invalid_sum += val;
+                invalid_part1 += val;
                 ranges.items[curr_iter - 1].valid = false;
                 //std.debug.print(" {d}({d})", .{ val, i });
             }
