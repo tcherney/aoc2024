@@ -40,38 +40,41 @@
 const std = @import("std");
 const common = @import("common");
 
+var scratch_buffer: [1024]u8 = undefined;
 pub fn on_render(self: anytype) void {
     //TODO show exploration of space, either with color or drawing it all
-    self.e.renderer.ascii.draw_symbol(0, @bitCast(self.window.height / 2), '7', common.Colors.GREEN, self.window);
+    const str = try std.fmt.bufPrint(&scratch_buffer, "Day 4\nPart 1: {d}\nPart 2: {d}", .{ part1, part2 });
+    self.e.renderer.ascii.draw_text(str, 5, 0, common.Colors.GREEN, self.window);
 }
 
-pub fn deinit(self: anytype) void {
-    _ = self;
+pub fn deinit(_: anytype) void {
+    if (state != .init) {
+        grid.deinit();
+    }
 }
 
 pub fn update(self: anytype) !void {
-    _ = self;
+    switch (state) {
+        .init => {
+            try init(self);
+        },
+        .part1 => {
+            try day4_p1();
+        },
+        .part2 => {
+            try day4_p2();
+        },
+        else => {},
+    }
 }
 
-pub fn start(self: anytype) void {
-    _ = self;
-}
-
-pub const RunnningState = enum {
-    init,
-    part1,
-    part2,
-    done,
-};
-
-pub fn day4_p2(self: anytype) !void {
+pub fn init(self: anytype) !void {
     const f = try std.fs.cwd().openFile("inputs/day4/input.txt", .{});
     defer f.close();
     var buf: [65536]u8 = undefined;
-    var grid = std.ArrayList(u8).init(self.allocator);
-    defer grid.deinit();
-    var w: usize = 0;
-    var h: usize = 0;
+    grid = std.ArrayList(u8).init(self.allocator);
+    w = 0;
+    h = 0;
     while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |unfiltered| {
         var line = unfiltered;
         if (std.mem.indexOfScalar(u8, unfiltered, '\r')) |indx| {
@@ -83,15 +86,36 @@ pub fn day4_p2(self: anytype) !void {
             try grid.append(c);
         }
     }
-    std.debug.print("Grid\n", .{});
-    for (0..h) |i| {
-        for (0..w) |j| {
-            std.debug.print("{c}", .{grid.items[i * w + j]});
-        }
-        std.debug.print("\n", .{});
+}
+
+pub fn start(_: anytype) void {
+    switch (state) {
+        .done => {
+            part1 = 0;
+            part2 = 0;
+            running = true;
+            state = .part1;
+        },
+        else => {},
     }
-    var total: u64 = 0;
-    var running: bool = true;
+}
+
+pub const RunningState = enum {
+    init,
+    part1,
+    part2,
+    done,
+};
+
+var state: RunningState = .init;
+var part1: u64 = 0;
+var part2: u64 = 0;
+var w: usize = 0;
+var h: usize = 0;
+var grid: std.ArrayList(u8) = undefined;
+var running: bool = true;
+
+pub fn day4_p2() !void {
     while (running) {
         running = false;
         outer: for (0..h) |i| {
@@ -110,7 +134,7 @@ pub fn day4_p2(self: anytype) !void {
                     if (at(grid, w, h, i_i64 + 1, j_i64 + 1) == '@') num_adj += 1;
                     if (num_adj < 4) {
                         grid.items[i * w + j] = 'x';
-                        total += 1;
+                        part2 += 1;
                         running = true;
                         break :outer;
                     }
@@ -118,10 +142,9 @@ pub fn day4_p2(self: anytype) !void {
             }
         }
     }
-    std.debug.print("Total accessible rolls: {d}\n", .{total});
 }
 
-pub fn at(grid: std.ArrayList(u8), w: usize, h: usize, i: i64, j: i64) u8 {
+pub fn at(i: i64, j: i64) u8 {
     if (j >= 0 and j < w and i >= 0 and i < h) {
         return grid.items[@as(usize, @bitCast(i)) * w + @as(usize, @bitCast(j))];
     }
@@ -129,33 +152,7 @@ pub fn at(grid: std.ArrayList(u8), w: usize, h: usize, i: i64, j: i64) u8 {
     return 0;
 }
 
-pub fn day4_p1(self: anytype) !void {
-    const f = try std.fs.cwd().openFile("inputs/day4/input.txt", .{});
-    defer f.close();
-    var buf: [65536]u8 = undefined;
-    var grid = std.ArrayList(u8).init(self.allocator);
-    defer grid.deinit();
-    var w: usize = 0;
-    var h: usize = 0;
-    while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |unfiltered| {
-        var line = unfiltered;
-        if (std.mem.indexOfScalar(u8, unfiltered, '\r')) |indx| {
-            line = unfiltered[0..indx];
-        }
-        h += 1;
-        w = line.len;
-        for (line) |c| {
-            try grid.append(c);
-        }
-    }
-    std.debug.print("Grid\n", .{});
-    for (0..h) |i| {
-        for (0..w) |j| {
-            std.debug.print("{c}", .{grid.items[i * w + j]});
-        }
-        std.debug.print("\n", .{});
-    }
-    var total: u64 = 0;
+pub fn day4_p1() !void {
     for (0..h) |i| {
         for (0..w) |j| {
             if (grid.items[i * w + j] == '@') {
@@ -171,10 +168,9 @@ pub fn day4_p1(self: anytype) !void {
                 if (at(grid, w, h, i_i64 + 1, j_i64) == '@') num_adj += 1;
                 if (at(grid, w, h, i_i64 + 1, j_i64 + 1) == '@') num_adj += 1;
                 if (num_adj < 4) {
-                    total += 1;
+                    part1 += 1;
                 }
             }
         }
     }
-    std.debug.print("Total accessible rolls: {d}\n", .{total});
 }

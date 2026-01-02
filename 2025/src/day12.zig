@@ -102,7 +102,7 @@ pub fn start(self: anytype) void {
     _ = self;
 }
 
-pub const RunnningState = enum {
+pub const RunningState = enum {
     init,
     part1,
     part2,

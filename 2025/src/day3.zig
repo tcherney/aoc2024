@@ -89,14 +89,14 @@ pub fn init(self: anytype) !void {
     state = .part1;
 }
 
-pub const RunnningState = enum {
+pub const RunningState = enum {
     init,
     part1,
     part2,
     done,
 };
 
-var state: RunnningState = .init;
+var state: RunningState = .init;
 var part1: usize = 0;
 var part2: usize = 0;
 var banks: std.ArrayList(std.ArrayList(usize)) = undefined;
