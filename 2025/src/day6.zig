@@ -45,21 +45,83 @@
 const std = @import("std");
 const common = @import("common");
 
+var scratch_buffer: [1024]u8 = undefined;
 pub fn on_render(self: anytype) void {
     //TODO highlight probblems as they are solved
-    self.e.renderer.ascii.draw_symbol(0, @bitCast(self.window.height / 2), '7', common.Colors.GREEN, self.window);
+    const str = try std.fmt.bufPrint(&scratch_buffer, "Day 6\nPart 1: {d}\nPart 2: {d}", .{ part1, part2 });
+    self.e.renderer.ascii.draw_text(str, 5, 0, common.Colors.GREEN, self.window);
 }
 
-pub fn deinit(self: anytype) void {
-    _ = self;
+pub fn deinit(_: anytype) void {
+    if (state != .init) {
+        for (0..problems.items.len) |i| {
+            problems.items[i].deinit();
+        }
+        problems.deinit();
+        full_input.deinit();
+    }
 }
 
 pub fn update(self: anytype) !void {
-    _ = self;
+    switch (state) {
+        .init => {
+            try init(self);
+        },
+        .part1 => {
+            try day6_p1();
+        },
+        .part2 => {
+            try day6_p2();
+        },
+        else => {},
+    }
 }
 
-pub fn start(self: anytype) void {
-    _ = self;
+pub fn init(self: anytype) !void {
+    const f = try std.fs.cwd().openFile("inputs/day6/input.txt", .{});
+    defer f.close();
+    var buf: [65536]u8 = undefined;
+    problems = std.ArrayList(Problem).init(self.allocator);
+    full_input = std.ArrayList(u8).init(self.allocator);
+    var col: usize = 0;
+    var row: usize = 0;
+    h = 0;
+    w = 0;
+    while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |unfiltered| {
+        var line = unfiltered;
+        if (std.mem.indexOfScalar(u8, unfiltered, '\r')) |indx| {
+            line = unfiltered[0..indx];
+        }
+        try full_input.writer().print("{s}", .{line});
+        w = line.len;
+        var tokens = std.mem.splitScalar(u8, line, ' ');
+        while (tokens.next()) |t| {
+            if (t.len == 0) continue;
+            if (row == 0) {
+                try problems.append(Problem.init(self.allocator));
+            }
+            if (t[0] == '*') {
+                problems.items[col].operation = .Mult;
+            } else if (t[0] == '+') {
+                problems.items[col].operation = .Add;
+            }
+            col += 1;
+        }
+        row += 1;
+        col = 0;
+    }
+    h = row - 1;
+}
+
+pub fn start(_: anytype) void {
+    switch (state) {
+        .done => {
+            part1 = 0;
+            part2 = 0;
+            state = .part1;
+        },
+        else => {},
+    }
 }
 
 pub const RunningState = enum {
@@ -68,6 +130,14 @@ pub const RunningState = enum {
     part2,
     done,
 };
+
+var state: RunningState = .init;
+var part1: u64 = 0;
+var part2: u64 = 0;
+var h: usize = 0;
+var w: usize = 0;
+var problems: std.ArrayList(Problem) = undefined;
+var full_input: std.ArrayList(u8) = undefined;
 
 pub const Problem = struct {
     numbers: std.ArrayList(usize),
@@ -105,7 +175,7 @@ pub const Problem = struct {
     }
 };
 
-pub fn create_numbers(problems: std.ArrayList(Problem), full_input: std.ArrayList(u8), w: usize, h: usize) !void {
+pub fn create_numbers() !void {
     var curr_problem: usize = 0;
     for (0..w) |j| {
         var n: usize = 0;
@@ -136,103 +206,30 @@ pub fn create_numbers(problems: std.ArrayList(Problem), full_input: std.ArrayLis
     }
 }
 
-pub fn day6_p2(self: anytype) !void {
-    const f = try std.fs.cwd().openFile("inputs/day6/input.txt", .{});
-    defer f.close();
-    var buf: [65536]u8 = undefined;
-    var problems = std.ArrayList(Problem).init(self.allocator);
-    defer problems.deinit();
-    var full_input = std.ArrayList(u8).init(self.allocator);
-    defer full_input.deinit();
-    var col: usize = 0;
-    var row: usize = 0;
-    var h: usize = 0;
-    var w: usize = 0;
-    while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |unfiltered| {
-        var line = unfiltered;
-        if (std.mem.indexOfScalar(u8, unfiltered, '\r')) |indx| {
-            line = unfiltered[0..indx];
-        }
-        try full_input.writer().print("{s}", .{line});
-        w = line.len;
-        var tokens = std.mem.splitScalar(u8, line, ' ');
-        while (tokens.next()) |t| {
-            if (t.len == 0) continue;
-            if (row == 0) {
-                try problems.append(Problem.init(self.allocator));
-            }
-            if (t[0] == '*') {
-                problems.items[col].operation = .Mult;
-            } else if (t[0] == '+') {
-                problems.items[col].operation = .Add;
-            }
-            col += 1;
-        }
-        row += 1;
-        col = 0;
-    }
-    h = row - 1;
-
-    var total: usize = 0;
+pub fn day6_p2() !void {
+    part2 = 0;
     std.debug.print("Full input w:{d} h:{d}\n{s}\n", .{ w, h, full_input.items });
     std.debug.print("Problems\n", .{});
-    try create_numbers(problems, full_input, w, h);
+    try create_numbers();
     for (problems.items) |*p| {
         for (p.numbers.items) |n| {
             std.debug.print("{d} ", .{n});
         }
-        total += p.compute();
+        part2 += p.compute();
         std.debug.print("{any}\n", .{p.operation});
     }
-    std.debug.print("Grand total: {d}\n", .{total});
-    for (problems.items) |*p| {
-        p.deinit();
-    }
+    std.debug.print("Grand total: {d}\n", .{part2});
 }
 
-pub fn day6_p1(self: anytype) !void {
-    const f = try std.fs.cwd().openFile("inputs/day6/input.txt", .{});
-    defer f.close();
-    var buf: [65536]u8 = undefined;
-    var problems = std.ArrayList(Problem).init(self.allocator);
-    defer problems.deinit();
-    var col: usize = 0;
-    var row: usize = 0;
-    while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |unfiltered| {
-        var line = unfiltered;
-        if (std.mem.indexOfScalar(u8, unfiltered, '\r')) |indx| {
-            line = unfiltered[0..indx];
-        }
-
-        var tokens = std.mem.splitScalar(u8, line, ' ');
-        while (tokens.next()) |t| {
-            if (t.len == 0) continue;
-            if (row == 0) {
-                try problems.append(Problem.init(self.allocator));
-            }
-            if (t[0] == '*') {
-                problems.items[col].operation = .Mult;
-            } else if (t[0] == '+') {
-                problems.items[col].operation = .Add;
-            } else {
-                try problems.items[col].numbers.append(try std.fmt.parseInt(usize, t, 10));
-            }
-            col += 1;
-        }
-        row += 1;
-        col = 0;
-    }
-    var total: usize = 0;
+pub fn day6_p1() !void {
+    part1 = 0;
     std.debug.print("Problems\n", .{});
     for (problems.items) |p| {
         for (p.numbers.items) |n| {
             std.debug.print("{d} ", .{n});
         }
-        total += p.compute();
+        part1 += p.compute();
         std.debug.print("{any}\n", .{p.operation});
     }
-    std.debug.print("Grand total: {d}\n", .{total});
-    for (problems.items) |*p| {
-        p.deinit();
-    }
+    std.debug.print("Grand total: {d}\n", .{part1});
 }

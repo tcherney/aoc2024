@@ -52,21 +52,77 @@
 const std = @import("std");
 const common = @import("common");
 
+var scratch_buffer: [1024]u8 = undefined;
 pub fn on_render(self: anytype) void {
     //TODO as boxes are connected show consolidated ids
-    self.e.renderer.ascii.draw_symbol(0, @bitCast(self.window.height / 2), '7', common.Colors.GREEN, self.window);
+    const str = try std.fmt.bufPrint(&scratch_buffer, "Day 8\nPart 1: {d}\nPart 2: {d}", .{ part1, part2 });
+    self.e.renderer.ascii.draw_text(str, 5, 0, common.Colors.GREEN, self.window);
 }
 
-pub fn deinit(self: anytype) void {
-    _ = self;
+pub fn deinit(_: anytype) void {
+    if (state != .init) {
+        points.deinit();
+        distances.deinit();
+        circuits.deinit();
+    }
 }
 
 pub fn update(self: anytype) !void {
-    _ = self;
+    switch (state) {
+        .init => {
+            try init(self);
+        },
+        .part1 => {
+            try day8_p1();
+        },
+        .part2 => {
+            try day8_p2();
+        },
+        else => {},
+    }
 }
 
-pub fn start(self: anytype) void {
-    _ = self;
+pub fn init(self: anytype) !void {
+    const f = try std.fs.cwd().openFile("inputs/day8/input.txt", .{});
+    defer f.close();
+    var buf: [65536]u8 = undefined;
+    points = std.ArrayList(JunctionPoint).init(self.allocator);
+    var circuit_id: usize = 0;
+    while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |unfiltered| {
+        var line = unfiltered;
+        if (std.mem.indexOfScalar(u8, unfiltered, '\r')) |indx| {
+            line = unfiltered[0..indx];
+        }
+        if (line.len == 0) continue;
+        var iter = std.mem.splitScalar(u8, line, ',');
+        try points.append(JunctionPoint{
+            .x = try std.fmt.parseFloat(f64, iter.next().?),
+            .y = try std.fmt.parseFloat(f64, iter.next().?),
+            .z = try std.fmt.parseFloat(f64, iter.next().?),
+            .circuit = circuit_id,
+        });
+        circuit_id += 1;
+    }
+    distances = std.ArrayList(Distance).init(self.allocator);
+
+    circuits = Circuits.init(self.allocator);
+    for (0..points.items.len) |i| {
+        var c = std.ArrayList(*JunctionPoint).init(self.allocator);
+        try c.append(&points.items[i]);
+        try circuits.put(points.items[i].circuit, c);
+    }
+    try min_dist();
+}
+
+pub fn start(_: anytype) void {
+    switch (state) {
+        .done => {
+            part1 = 0;
+            part2 = 0;
+            state = .part1;
+        },
+        else => {},
+    }
 }
 
 pub const RunningState = enum {
@@ -75,6 +131,13 @@ pub const RunningState = enum {
     part2,
     done,
 };
+
+var state: RunningState = .init;
+var part1: u64 = 0;
+var part2: u64 = 0;
+var points: std.ArrayList(JunctionPoint) = undefined;
+var distances: std.ArrayList(Distance) = undefined;
+var circuits: Circuits = undefined;
 
 pub const JunctionPoint = struct {
     x: f64,
@@ -95,7 +158,7 @@ pub const Distance = struct {
 
 pub const Circuits = std.AutoHashMap(usize, std.ArrayList(*JunctionPoint));
 
-pub fn min_dist(points: []JunctionPoint, distances: *std.ArrayList(Distance)) !void {
+pub fn min_dist() !void {
     for (0..points.len) |i| {
         for (i + 1..points.len) |j| {
             const dist = points[i].dist(points[j]);
@@ -128,7 +191,7 @@ pub fn ordered_count_insert(counts: []usize, val: usize) void {
     }
 }
 
-pub fn connect_points_p1(distances: std.ArrayList(Distance), circuits: *Circuits, num_connections: usize) !usize {
+pub fn connect_points_p1(num_connections: usize) !usize {
     var connections_made: usize = 0;
     var counts: [3]usize = [_]usize{0} ** 3;
     for (distances.items) |d| {
@@ -159,7 +222,7 @@ pub fn connect_points_p1(distances: std.ArrayList(Distance), circuits: *Circuits
     return counts[0] * counts[1] * counts[2];
 }
 
-pub fn connect_points_p2(distances: std.ArrayList(Distance), circuits: *Circuits, num_points: usize) !usize {
+pub fn connect_points_p2(num_points: usize) !usize {
     for (distances.items) |d| {
         //std.debug.print("Distance {any}\n", .{d});
         if (d.p1.circuit != d.p2.circuit) {
@@ -181,111 +244,19 @@ pub fn connect_points_p2(distances: std.ArrayList(Distance), circuits: *Circuits
     return 0;
 }
 
-pub fn day8_p2(self: anytype) !void {
-    const f = try std.fs.cwd().openFile("inputs/day8/input.txt", .{});
-    defer f.close();
-    var buf: [65536]u8 = undefined;
-    var points = std.ArrayList(JunctionPoint).init(self.allocator);
-    defer points.deinit();
-    var circuit_id: usize = 0;
-    while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |unfiltered| {
-        var line = unfiltered;
-        if (std.mem.indexOfScalar(u8, unfiltered, '\r')) |indx| {
-            line = unfiltered[0..indx];
-        }
-        if (line.len == 0) continue;
-        var iter = std.mem.splitScalar(u8, line, ',');
-        try points.append(JunctionPoint{
-            .x = try std.fmt.parseFloat(f64, iter.next().?),
-            .y = try std.fmt.parseFloat(f64, iter.next().?),
-            .z = try std.fmt.parseFloat(f64, iter.next().?),
-            .circuit = circuit_id,
-        });
-        circuit_id += 1;
-    }
-    var distances = std.ArrayList(Distance).init(self.allocator);
-    defer distances.deinit();
-
-    // std.debug.print("Points\n", .{});
-    // for (points.items) |p| {
-    //     std.debug.print("({d},{d},{d})\n", .{ p.x, p.y, p.z });
-    // }
-    var circuits = Circuits.init(self.allocator);
-    defer circuits.deinit();
-    for (0..points.items.len) |i| {
-        var c = std.ArrayList(*JunctionPoint).init(self.allocator);
-        try c.append(&points.items[i]);
-        try circuits.put(points.items[i].circuit, c);
-    }
-
-    try min_dist(points.items, &distances);
-
-    // std.debug.print("Distances\n", .{});
-    // for (distances.items) |d| {
-    //     std.debug.print("({d},{d},{d}) ({d},{d},{d}) = {d}\n", .{ d.p1.x, d.p1.y, d.p1.z, d.p2.x, d.p2.y, d.p2.z, d.magnitude });
-    // }
-    const ans = try connect_points_p2(distances, &circuits, points.items.len);
-    // std.debug.print("Points\n", .{});
-    // for (points.items) |p| {
-    //     std.debug.print("({d},{d},{d}) Circuit: {d} \n", .{ p.x, p.y, p.z, p.circuit });
-    // }
-    std.debug.print("Need extension cable of {d}\n", .{ans});
+pub fn day8_p2() !void {
+    part2 = try connect_points_p2(distances, &circuits, points.items.len);
+    std.debug.print("Need extension cable of {d}\n", .{part2});
     var iter = circuits.iterator();
     while (iter.next()) |i| {
         i.value_ptr.deinit();
     }
 }
 
-pub fn day8_p1(self: anytype) !void {
-    const f = try std.fs.cwd().openFile("inputs/day8/input.txt", .{});
-    defer f.close();
-    var buf: [65536]u8 = undefined;
-    var points = std.ArrayList(JunctionPoint).init(self.allocator);
-    defer points.deinit();
-    var circuit_id: usize = 0;
-    while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |unfiltered| {
-        var line = unfiltered;
-        if (std.mem.indexOfScalar(u8, unfiltered, '\r')) |indx| {
-            line = unfiltered[0..indx];
-        }
-        if (line.len == 0) continue;
-        var iter = std.mem.splitScalar(u8, line, ',');
-        try points.append(JunctionPoint{
-            .x = try std.fmt.parseFloat(f64, iter.next().?),
-            .y = try std.fmt.parseFloat(f64, iter.next().?),
-            .z = try std.fmt.parseFloat(f64, iter.next().?),
-            .circuit = circuit_id,
-        });
-        circuit_id += 1;
-    }
-    var distances = std.ArrayList(Distance).init(self.allocator);
-    defer distances.deinit();
-
-    // std.debug.print("Points\n", .{});
-    // for (points.items) |p| {
-    //     std.debug.print("({d},{d},{d})\n", .{ p.x, p.y, p.z });
-    // }
+pub fn day8_p1() !void {
     const num_connections = 1000;
-    var circuits = Circuits.init(self.allocator);
-    defer circuits.deinit();
-    for (0..points.items.len) |i| {
-        var c = std.ArrayList(*JunctionPoint).init(self.allocator);
-        try c.append(&points.items[i]);
-        try circuits.put(points.items[i].circuit, c);
-    }
-
-    try min_dist(points.items, &distances);
-
-    // std.debug.print("Distances\n", .{});
-    // for (distances.items) |d| {
-    //     std.debug.print("({d},{d},{d}) ({d},{d},{d}) = {d}\n", .{ d.p1.x, d.p1.y, d.p1.z, d.p2.x, d.p2.y, d.p2.z, d.magnitude });
-    // }
-    const ans = try connect_points_p1(distances, &circuits, num_connections);
-    // std.debug.print("Points\n", .{});
-    // for (points.items) |p| {
-    //     std.debug.print("({d},{d},{d}) Circuit: {d} \n", .{ p.x, p.y, p.z, p.circuit });
-    // }
-    std.debug.print("Three largest multiplied together {d}\n", .{ans});
+    part1 = try connect_points_p1(distances, &circuits, num_connections);
+    std.debug.print("Three largest multiplied together {d}\n", .{part1});
     var iter = circuits.iterator();
     while (iter.next()) |i| {
         i.value_ptr.deinit();

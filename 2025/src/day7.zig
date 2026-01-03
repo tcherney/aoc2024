@@ -191,39 +191,43 @@
 const std = @import("std");
 const common = @import("common");
 
+var scratch_buffer: [1024]u8 = undefined;
 pub fn on_render(self: anytype) void {
     //TODO animate beams
-    self.e.renderer.ascii.draw_symbol(0, @bitCast(self.window.height / 2), '7', common.Colors.GREEN, self.window);
+    const str = try std.fmt.bufPrint(&scratch_buffer, "Day 7\nPart 1: {d}\nPart 2: {d}", .{ part1, part2 });
+    self.e.renderer.ascii.draw_text(str, 5, 0, common.Colors.GREEN, self.window);
 }
 
-pub fn deinit(self: anytype) void {
-    _ = self;
+pub fn deinit(_: anytype) void {
+    if (state != .init) {
+        board.deinit();
+        dp.deinit();
+    }
 }
 
 pub fn update(self: anytype) !void {
-    _ = self;
+    switch (state) {
+        .init => {
+            try init(self);
+        },
+        .part1 => {
+            try day7_p1();
+        },
+        .part2 => {
+            try day7_p2();
+        },
+        else => {},
+    }
 }
 
-pub fn start(self: anytype) void {
-    _ = self;
-}
-
-pub const RunningState = enum {
-    init,
-    part1,
-    part2,
-    done,
-};
-
-pub fn day7_p2(self: anytype) !void {
+pub fn init(self: anytype) !void {
     const f = try std.fs.cwd().openFile("inputs/day7/input.txt", .{});
     defer f.close();
     var buf: [65536]u8 = undefined;
-    var board: std.ArrayList(u8) = std.ArrayList(u8).init(self.allocator);
-    var w: usize = 0;
-    var h: usize = 0;
-    var start_point: usize = 0;
-    defer board.deinit();
+    board = std.ArrayList(u8).init(self.allocator);
+    w = 0;
+    h = 0;
+    start_point = 0;
     while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |unfiltered| {
         var line = unfiltered;
         if (std.mem.indexOfScalar(u8, unfiltered, '\r')) |indx| {
@@ -239,14 +243,42 @@ pub fn day7_p2(self: anytype) !void {
         h += 1;
         w = line.len;
     }
-    //print_board(board, w, h);
     dp = std.AutoHashMap(Point, usize).init(self.allocator);
-    defer dp.deinit();
-    const timelines = try dfs_trace_beam(board, w, h, .{
+}
+
+pub fn start(_: anytype) void {
+    switch (state) {
+        .done => {
+            part1 = 0;
+            part2 = 0;
+            state = .part1;
+        },
+        else => {},
+    }
+}
+
+pub const RunningState = enum {
+    init,
+    part1,
+    part2,
+    done,
+};
+
+var state: RunningState = .init;
+var part1: u64 = 0;
+var part2: u64 = 0;
+var board: std.ArrayList(u8) = undefined;
+var w: usize = 0;
+var h: usize = 0;
+var start_point: usize = 0;
+var dp: std.AutoHashMap(Point, usize) = undefined;
+
+pub fn day7_p2() !void {
+    part2 = try dfs_trace_beam(.{
         .x = start_point,
         .y = 0,
     });
-    std.debug.print("{d} timelines.\n", .{timelines});
+    std.debug.print("{d} timelines.\n", .{part2});
 }
 
 pub const Point = struct {
@@ -254,9 +286,7 @@ pub const Point = struct {
     y: usize,
 };
 
-var dp: std.AutoHashMap(Point, usize) = undefined;
-
-pub fn dfs_trace_beam(board: std.ArrayList(u8), w: usize, h: usize, p: Point) !usize {
+pub fn dfs_trace_beam(p: Point) !usize {
     if (p.y == h - 1) {
         return 1;
     } else {
@@ -285,7 +315,7 @@ pub fn dfs_trace_beam(board: std.ArrayList(u8), w: usize, h: usize, p: Point) !u
     }
 }
 
-pub fn bfs_trace_beam(allocator: std.mem.Allocator, board: std.ArrayList(u8), w: usize, h: usize, p: Point) !usize {
+pub fn bfs_trace_beam(allocator: std.mem.Allocator, p: Point) !usize {
     var splits: usize = 0;
     var queue: std.ArrayList(Point) = std.ArrayList(Point).init(allocator);
     defer queue.deinit();
@@ -324,7 +354,7 @@ pub fn bfs_trace_beam(allocator: std.mem.Allocator, board: std.ArrayList(u8), w:
     return splits;
 }
 
-pub fn print_board(board: std.ArrayList(u8), w: usize, h: usize) void {
+pub fn print_board() void {
     for (0..h) |i| {
         for (0..w) |j| {
             std.debug.print("{c}", .{board.items[i * w + j]});
@@ -335,38 +365,9 @@ pub fn print_board(board: std.ArrayList(u8), w: usize, h: usize) void {
 }
 
 pub fn day7_p1(self: anytype) !void {
-    const f = try std.fs.cwd().openFile("inputs/day7/input.txt", .{});
-    defer f.close();
-    var buf: [65536]u8 = undefined;
-    var board: std.ArrayList(u8) = std.ArrayList(u8).init(self.allocator);
-    var w: usize = 0;
-    var h: usize = 0;
-    var start_point: usize = 0;
-    defer board.deinit();
-    while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |unfiltered| {
-        var line = unfiltered;
-        if (std.mem.indexOfScalar(u8, unfiltered, '\r')) |indx| {
-            line = unfiltered[0..indx];
-        }
-        if (line.len == 0) continue;
-        if (std.mem.indexOfScalar(u8, line, 'S')) |indx| {
-            start_point = indx;
-        }
-        for (line) |c| {
-            try board.append(c);
-        }
-        h += 1;
-        w = line.len;
-    }
-    //print_board(board, w, h);
-    // const splits = dfs_trace_beam(board, w, h, .{
-    //     .x = start_point,
-    //     .y = 0,
-    // });
-    const splits = try bfs_trace_beam(self.allocator, board, w, h, .{
+    part1 = try bfs_trace_beam(self.allocator, .{
         .x = start_point,
         .y = 0,
     });
-    //print_board(board, w, h);
-    std.debug.print("Beam split {d} times.\n", .{splits});
+    std.debug.print("Beam split {d} times.\n", .{part1});
 }

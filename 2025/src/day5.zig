@@ -52,87 +52,41 @@
 const std = @import("std");
 const common = @import("common");
 
+var scratch_buffer: [1024]u8 = undefined;
 pub fn on_render(self: anytype) void {
     //TODO go through list highlihgting the fresh ids?
-    self.e.renderer.ascii.draw_symbol(0, @bitCast(self.window.height / 2), '7', common.Colors.GREEN, self.window);
+    const str = try std.fmt.bufPrint(&scratch_buffer, "Day 5\nPart 1: {d}\nPart 2: {d}", .{ part1, part2 });
+    self.e.renderer.ascii.draw_text(str, 5, 0, common.Colors.GREEN, self.window);
 }
 
-pub fn deinit(self: anytype) void {
-    _ = self;
+pub fn deinit(_: anytype) void {
+    if (state != .init) {
+        ranges.deinit();
+        ingredients.deinit();
+    }
 }
 
 pub fn update(self: anytype) !void {
-    _ = self;
+    switch (state) {
+        .init => {
+            try init(self);
+        },
+        .part1 => {
+            try day5_p1();
+        },
+        .part2 => {
+            try day5_p2();
+        },
+        else => {},
+    }
 }
 
-pub fn start(self: anytype) void {
-    _ = self;
-}
-
-pub const RunningState = enum {
-    init,
-    part1,
-    part2,
-    done,
-};
-
-pub const Range = struct {
-    start: usize,
-    end: usize,
-};
-
-pub fn day5_p2(self: anytype) !void {
+pub fn init(self: anytype) !void {
     const f = try std.fs.cwd().openFile("inputs/day5/input.txt", .{});
     defer f.close();
     var buf: [65536]u8 = undefined;
-    var ranges = std.ArrayList(Range).init(self.allocator);
-    defer ranges.deinit();
-    while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |unfiltered| {
-        var line = unfiltered;
-        if (std.mem.indexOfScalar(u8, unfiltered, '\r')) |indx| {
-            line = unfiltered[0..indx];
-        }
-        if (line.len == 0) break;
-        if (std.mem.indexOfScalar(u8, line, '-') != null) {
-            std.debug.print("{s}\n", .{line});
-            var it = std.mem.splitScalar(u8, line, '-');
-            try ranges.append(.{ .start = try std.fmt.parseInt(usize, it.next().?, 10), .end = try std.fmt.parseInt(usize, it.next().?, 10) });
-        }
-    }
-    std.mem.sort(Range, ranges.items, {}, struct {
-        pub fn compare(_: void, lhs: Range, rhs: Range) bool {
-            return if (lhs.start == rhs.start) lhs.end < rhs.end else lhs.start < rhs.start;
-        }
-    }.compare);
-    std.debug.print("Ranges\n", .{});
-    for (ranges.items) |r| {
-        std.debug.print("{any}-{any}\n", .{ r.start, r.end });
-    }
-    var fresh: usize = 0;
-    var prev_max: usize = 0;
-    for (ranges.items) |r| {
-        if (prev_max == 0 or prev_max < r.start) {
-            fresh += r.end - r.start + 1;
-            prev_max = r.end;
-        } else {
-            if (r.end < prev_max) continue;
-            fresh += r.end - prev_max;
-            prev_max = r.end;
-        }
-        //std.debug.print("{any}-{any}", .{ r.start, r.end });
-        //std.debug.print(": {d}\n", .{fresh});
-    }
-    std.debug.print("Number of fresh ingredients: {d}\n", .{fresh});
-}
-
-pub fn day5_p1(self: anytype) !void {
-    const f = try std.fs.cwd().openFile("inputs/day5/input.txt", .{});
-    defer f.close();
-    var buf: [65536]u8 = undefined;
-    var ranges = std.ArrayList(Range).init(self.allocator);
-    defer ranges.deinit();
-    var ingredients = std.ArrayList(usize).init(self.allocator);
-    defer ingredients.deinit();
+    ranges = std.ArrayList(Range).init(self.allocator);
+    ingredients = std.ArrayList(usize).init(self.allocator);
     while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |unfiltered| {
         var line = unfiltered;
         if (std.mem.indexOfScalar(u8, unfiltered, '\r')) |indx| {
@@ -147,6 +101,59 @@ pub fn day5_p1(self: anytype) !void {
             try ingredients.append(try std.fmt.parseInt(usize, line, 10));
         }
     }
+    std.mem.sort(Range, ranges.items, {}, struct {
+        pub fn compare(_: void, lhs: Range, rhs: Range) bool {
+            return if (lhs.start == rhs.start) lhs.end < rhs.end else lhs.start < rhs.start;
+        }
+    }.compare);
+}
+
+pub fn start(_: anytype) void {
+    switch (state) {
+        .done => {
+            part1 = 0;
+            part2 = 0;
+            state = .part1;
+        },
+        else => {},
+    }
+}
+
+pub const RunningState = enum {
+    init,
+    part1,
+    part2,
+    done,
+};
+
+var state: RunningState = .init;
+var part1: u64 = 0;
+var part2: u64 = 0;
+var ranges: std.ArrayList(Range) = undefined;
+var ingredients: std.ArrayList(usize) = undefined;
+
+pub const Range = struct {
+    start: usize,
+    end: usize,
+};
+
+pub fn day5_p2() !void {
+    part2 = 0;
+    var prev_max: usize = 0;
+    for (ranges.items) |r| {
+        if (prev_max == 0 or prev_max < r.start) {
+            part2 += r.end - r.start + 1;
+            prev_max = r.end;
+        } else {
+            if (r.end < prev_max) continue;
+            part2 += r.end - prev_max;
+            prev_max = r.end;
+        }
+    }
+    std.debug.print("Number of fresh ingredients: {d}\n", .{part2});
+}
+
+pub fn print() void {
     std.debug.print("Ranges\n", .{});
     for (ranges.items) |r| {
         std.debug.print("{any}-{any}\n", .{ r.start, r.end });
@@ -155,14 +162,17 @@ pub fn day5_p1(self: anytype) !void {
     for (ingredients.items) |i| {
         std.debug.print("{any}\n", .{i});
     }
-    var num_fresh: usize = 0;
+}
+
+pub fn day5_p1() !void {
+    part1 = 0;
     for (ingredients.items) |i| {
         for (ranges.items) |r| {
             if (i >= r.start and i <= r.end) {
-                num_fresh += 1;
+                part1 += 1;
                 break;
             }
         }
     }
-    std.debug.print("Number of fresh ingredients: {d}\n", .{num_fresh});
+    std.debug.print("Number of fresh ingredients: {d}\n", .{part1});
 }
