@@ -73,22 +73,16 @@
 const std = @import("std");
 const common = @import("common");
 
-pub fn on_render(self: anytype) void {
-    //TODO could show paths as we go through and highlight the fft/dac names in the path like the example
-    self.e.renderer.ascii.draw_symbol(0, @bitCast(self.window.height / 2), '7', common.Colors.GREEN, self.window);
-}
-
 var scratch_buffer: [1024]u8 = undefined;
 pub fn on_render(self: anytype) void {
-    //TODO go through list highlihgting the fresh ids?
-    const str = try std.fmt.bufPrint(&scratch_buffer, "Day 5\nPart 1: {d}\nPart 2: {d}", .{ part1, part2 });
+    //TODO could show paths as we go through and highlight the fft/dac names in the path like the example
+    const str = try std.fmt.bufPrint(&scratch_buffer, "Day 11\nPart 1: {d}\nPart 2: {d}", .{ part1, part2 });
     self.e.renderer.ascii.draw_text(str, 5, 0, common.Colors.GREEN, self.window);
 }
 
 pub fn deinit(_: anytype) void {
     if (state != .init) {
-        ranges.deinit();
-        ingredients.deinit();
+        graph.deinit();
     }
 }
 
@@ -98,40 +92,36 @@ pub fn update(self: anytype) !void {
             try init(self);
         },
         .part1 => {
-            try day5_p1();
+            try day11_p1();
         },
         .part2 => {
-            try day5_p2();
+            try day11_p2();
         },
         else => {},
     }
 }
 
 pub fn init(self: anytype) !void {
-    const f = try std.fs.cwd().openFile("inputs/day5/input.txt", .{});
+    const f = try std.fs.cwd().openFile("inputs/day11/input.txt", .{});
     defer f.close();
     var buf: [65536]u8 = undefined;
-    ranges = std.ArrayList(Range).init(self.allocator);
-    ingredients = std.ArrayList(usize).init(self.allocator);
+    graph = Graph.init(self.allocator);
     while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |unfiltered| {
         var line = unfiltered;
         if (std.mem.indexOfScalar(u8, unfiltered, '\r')) |indx| {
             line = unfiltered[0..indx];
         }
-        if (line.len == 0) continue;
-        if (std.mem.indexOfScalar(u8, line, '-') != null) {
-            std.debug.print("{s}\n", .{line});
-            var it = std.mem.splitScalar(u8, line, '-');
-            try ranges.append(.{ .start = try std.fmt.parseInt(usize, it.next().?, 10), .end = try std.fmt.parseInt(usize, it.next().?, 10) });
-        } else {
-            try ingredients.append(try std.fmt.parseInt(usize, line, 10));
+        if (line.len == 0) break;
+
+        const start_node = line[0..std.mem.indexOfScalar(u8, line, ':').?];
+        var iter = std.mem.splitScalar(u8, line, ' ');
+        _ = iter.next();
+        //std.debug.print("start: {s}\n", .{start_node});
+        while (iter.next()) |end_node| {
+            //std.debug.print("end: {s}\n", .{end_node});
+            try graph.add_edge(start_node, end_node);
         }
     }
-    std.mem.sort(Range, ranges.items, {}, struct {
-        pub fn compare(_: void, lhs: Range, rhs: Range) bool {
-            return if (lhs.start == rhs.start) lhs.end < rhs.end else lhs.start < rhs.start;
-        }
-    }.compare);
 }
 
 pub fn start(_: anytype) void {
@@ -153,6 +143,7 @@ pub const RunningState = enum {
 };
 
 var state: RunningState = .init;
+var graph: Graph = undefined;
 var part1: u64 = 0;
 var part2: u64 = 0;
 
@@ -330,56 +321,12 @@ pub const Graph = struct {
     }
 };
 
-pub fn day11_p2(self: anytype) !void {
-    const f = try std.fs.cwd().openFile("inputs/day11/input.txt", .{});
-    defer f.close();
-    var buf: [65536]u8 = undefined;
-    var graph = Graph.init(self.allocator);
-    defer graph.deinit();
-    while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |unfiltered| {
-        var line = unfiltered;
-        if (std.mem.indexOfScalar(u8, unfiltered, '\r')) |indx| {
-            line = unfiltered[0..indx];
-        }
-        if (line.len == 0) break;
-
-        const start_node = line[0..std.mem.indexOfScalar(u8, line, ':').?];
-        var iter = std.mem.splitScalar(u8, line, ' ');
-        _ = iter.next();
-        //std.debug.print("start: {s}\n", .{start_node});
-        while (iter.next()) |end_node| {
-            //std.debug.print("end: {s}\n", .{end_node});
-            try graph.add_edge(start_node, end_node);
-        }
-    }
-    graph.print();
+pub fn day11_p2() !void {
     try common.timer_start();
     std.debug.print("{d} paths in {d} seconds.\n", .{ try graph.compute_pathsv2(graph.find_node("svr").?, graph.find_node("out").?), common.timer_end() });
 }
 
-pub fn day11_p1(self: anytype) !void {
-    const f = try std.fs.cwd().openFile("inputs/day11/input.txt", .{});
-    defer f.close();
-    var buf: [65536]u8 = undefined;
-    var graph = Graph.init(self.allocator);
-    defer graph.deinit();
-    while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |unfiltered| {
-        var line = unfiltered;
-        if (std.mem.indexOfScalar(u8, unfiltered, '\r')) |indx| {
-            line = unfiltered[0..indx];
-        }
-        if (line.len == 0) break;
-
-        const start_node = line[0..std.mem.indexOfScalar(u8, line, ':').?];
-        var iter = std.mem.splitScalar(u8, line, ' ');
-        _ = iter.next();
-        //std.debug.print("start: {s}\n", .{start_node});
-        while (iter.next()) |end_node| {
-            //std.debug.print("end: {s}\n", .{end_node});
-            try graph.add_edge(start_node, end_node);
-        }
-    }
-    //graph.print();
+pub fn day11_p1() !void {
     try common.timer_start();
     std.debug.print("{d} paths in {d} seconds.\n", .{ try graph.compute_paths(graph.find_node("you").?, graph.find_node("out").?), common.timer_end() });
 }

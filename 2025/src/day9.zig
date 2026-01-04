@@ -142,82 +142,8 @@ const std = @import("std");
 const common = @import("common");
 
 var scratch_buffer: [1024]u8 = undefined;
-pub fn on_render(self: anytype) void {
-    //TODO go through list highlihgting the fresh ids?
-    const str = try std.fmt.bufPrint(&scratch_buffer, "Day 5\nPart 1: {d}\nPart 2: {d}", .{ part1, part2 });
-    self.e.renderer.ascii.draw_text(str, 5, 0, common.Colors.GREEN, self.window);
-}
-
-pub fn deinit(_: anytype) void {
-    if (state != .init) {
-        ranges.deinit();
-        ingredients.deinit();
-    }
-}
-
-pub fn update(self: anytype) !void {
-    switch (state) {
-        .init => {
-            try init(self);
-        },
-        .part1 => {
-            try day5_p1();
-        },
-        .part2 => {
-            try day5_p2();
-        },
-        else => {},
-    }
-}
-
-pub fn init(self: anytype) !void {
-    const f = try std.fs.cwd().openFile("inputs/day5/input.txt", .{});
-    defer f.close();
-    var buf: [65536]u8 = undefined;
-    ranges = std.ArrayList(Range).init(self.allocator);
-    ingredients = std.ArrayList(usize).init(self.allocator);
-    while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |unfiltered| {
-        var line = unfiltered;
-        if (std.mem.indexOfScalar(u8, unfiltered, '\r')) |indx| {
-            line = unfiltered[0..indx];
-        }
-        if (line.len == 0) continue;
-        if (std.mem.indexOfScalar(u8, line, '-') != null) {
-            std.debug.print("{s}\n", .{line});
-            var it = std.mem.splitScalar(u8, line, '-');
-            try ranges.append(.{ .start = try std.fmt.parseInt(usize, it.next().?, 10), .end = try std.fmt.parseInt(usize, it.next().?, 10) });
-        } else {
-            try ingredients.append(try std.fmt.parseInt(usize, line, 10));
-        }
-    }
-    std.mem.sort(Range, ranges.items, {}, struct {
-        pub fn compare(_: void, lhs: Range, rhs: Range) bool {
-            return if (lhs.start == rhs.start) lhs.end < rhs.end else lhs.start < rhs.start;
-        }
-    }.compare);
-}
-
-pub fn start(_: anytype) void {
-    switch (state) {
-        .done => {
-            part1 = 0;
-            part2 = 0;
-            state = .part1;
-        },
-        else => {},
-    }
-}
-
-pub const RunningState = enum {
-    init,
-    part1,
-    part2,
-    done,
-};
-
-var state: RunningState = .init;
-var part1: u64 = 0;
-var part2: u64 = 0;
+//TODO have to figure this out
+pub fn init(self: anytype) !void {}
 
 pub const Point = struct {
     x: f64,
@@ -326,11 +252,29 @@ pub const Line = struct {
 };
 
 pub fn update(self: anytype) !void {
-    _ = self;
+    switch (state) {
+        .init => {
+            try init(self);
+        },
+        .part1 => {
+            try day9_p1();
+        },
+        .part2 => {
+            try day9_p2();
+        },
+        else => {},
+    }
 }
 
-pub fn start(self: anytype) void {
-    _ = self;
+pub fn start(_: anytype) void {
+    switch (state) {
+        .done => {
+            part1 = 0;
+            part2 = 0;
+            state = .part1;
+        },
+        else => {},
+    }
 }
 
 pub const RunningState = enum {
@@ -347,8 +291,9 @@ var lines: std.ArrayList(Line) = undefined;
 var points: std.ArrayList(Point) = undefined;
 var x_coord: std.AutoHashMap(u64, std.ArrayList(i64)) = undefined;
 var y_coord: std.AutoHashMap(u64, std.ArrayList(i64)) = undefined;
-pub var part1: bool = false;
-pub var part2: bool = false;
+var state: RunningState = .init;
+var part1: u64 = 0;
+var part2: u64 = 0;
 
 pub fn on_render(self: anytype) void {
     //TODO highlight rectangles as they are checked

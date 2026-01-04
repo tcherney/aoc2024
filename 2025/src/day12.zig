@@ -85,72 +85,28 @@
 const std = @import("std");
 const common = @import("common");
 
-pub fn on_render(self: anytype) void {
-    //TODO just output the text of the answer
-    self.e.renderer.ascii.draw_symbol(0, @bitCast(self.window.height / 2), '7', common.Colors.GREEN, self.window);
-}
-
 var scratch_buffer: [1024]u8 = undefined;
 pub fn on_render(self: anytype) void {
-    //TODO go through list highlihgting the fresh ids?
-    const str = try std.fmt.bufPrint(&scratch_buffer, "Day 5\nPart 1: {d}\nPart 2: {d}", .{ part1, part2 });
+    //TODO just output the text of the answer
+    const str = try std.fmt.bufPrint(&scratch_buffer, "Day 12\nPart 1: {d}", .{part1});
     self.e.renderer.ascii.draw_text(str, 5, 0, common.Colors.GREEN, self.window);
 }
 
-pub fn deinit(_: anytype) void {
-    if (state != .init) {
-        ranges.deinit();
-        ingredients.deinit();
-    }
-}
+pub fn deinit(_: anytype) void {}
 
-pub fn update(self: anytype) !void {
+pub fn update(_: anytype) !void {
     switch (state) {
-        .init => {
-            try init(self);
-        },
-        .part1 => {
-            try day5_p1();
-        },
-        .part2 => {
-            try day5_p2();
+        .run => {
+            try day12_p1();
         },
         else => {},
     }
-}
-
-pub fn init(self: anytype) !void {
-    const f = try std.fs.cwd().openFile("inputs/day5/input.txt", .{});
-    defer f.close();
-    var buf: [65536]u8 = undefined;
-    ranges = std.ArrayList(Range).init(self.allocator);
-    ingredients = std.ArrayList(usize).init(self.allocator);
-    while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |unfiltered| {
-        var line = unfiltered;
-        if (std.mem.indexOfScalar(u8, unfiltered, '\r')) |indx| {
-            line = unfiltered[0..indx];
-        }
-        if (line.len == 0) continue;
-        if (std.mem.indexOfScalar(u8, line, '-') != null) {
-            std.debug.print("{s}\n", .{line});
-            var it = std.mem.splitScalar(u8, line, '-');
-            try ranges.append(.{ .start = try std.fmt.parseInt(usize, it.next().?, 10), .end = try std.fmt.parseInt(usize, it.next().?, 10) });
-        } else {
-            try ingredients.append(try std.fmt.parseInt(usize, line, 10));
-        }
-    }
-    std.mem.sort(Range, ranges.items, {}, struct {
-        pub fn compare(_: void, lhs: Range, rhs: Range) bool {
-            return if (lhs.start == rhs.start) lhs.end < rhs.end else lhs.start < rhs.start;
-        }
-    }.compare);
 }
 
 pub fn start(_: anytype) void {
     switch (state) {
         .done => {
             part1 = 0;
-            part2 = 0;
             state = .part1;
         },
         else => {},
@@ -158,21 +114,18 @@ pub fn start(_: anytype) void {
 }
 
 pub const RunningState = enum {
-    init,
-    part1,
-    part2,
+    run,
     done,
 };
 
 var state: RunningState = .init;
 var part1: u64 = 0;
-var part2: u64 = 0;
 
-pub fn day12_p1(_: anytype) !void {
+pub fn day12_p1() !void {
     const f = try std.fs.cwd().openFile("inputs/day12/input.txt", .{});
     defer f.close();
     var buf: [65536]u8 = undefined;
-    var fit: u64 = 0;
+    part1 = 0;
     while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |unfiltered| {
         var line = unfiltered;
         if (std.mem.indexOfScalar(u8, unfiltered, '\r')) |indx| {
@@ -195,9 +148,8 @@ pub fn day12_p1(_: anytype) !void {
             }
             //std.debug.print("\n{d}\n", .{num_boxes});
             if (num_boxes <= area) {
-                fit += 1;
+                part1 += 1;
             }
         }
     }
-    std.debug.print("Number of regions that can fit {d}.", .{fit});
 }

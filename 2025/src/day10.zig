@@ -47,23 +47,16 @@
 const std = @import("std");
 const common = @import("common");
 
-pub fn on_render(self: anytype) void {
-    //TODO animate machine lights as they are solved
-    self.e.renderer.ascii.draw_symbol(0, @bitCast(self.window.height / 2), '7', common.Colors.GREEN, self.window);
-}
-
+//TODO this will also have to be redone
 var scratch_buffer: [1024]u8 = undefined;
 pub fn on_render(self: anytype) void {
-    //TODO go through list highlihgting the fresh ids?
-    const str = try std.fmt.bufPrint(&scratch_buffer, "Day 5\nPart 1: {d}\nPart 2: {d}", .{ part1, part2 });
+    //TODO animate machine lights as they are solved
+    const str = try std.fmt.bufPrint(&scratch_buffer, "Day 10\nPart 1: {d}\nPart 2: {d}", .{ part1, part2 });
     self.e.renderer.ascii.draw_text(str, 5, 0, common.Colors.GREEN, self.window);
 }
 
 pub fn deinit(_: anytype) void {
-    if (state != .init) {
-        ranges.deinit();
-        ingredients.deinit();
-    }
+    if (state != .init) {}
 }
 
 pub fn update(self: anytype) !void {
@@ -72,10 +65,10 @@ pub fn update(self: anytype) !void {
             try init(self);
         },
         .part1 => {
-            try day5_p1();
+            try day10_p1();
         },
         .part2 => {
-            try day5_p2();
+            try day10_p2();
         },
         else => {},
     }
