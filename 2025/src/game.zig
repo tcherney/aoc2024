@@ -130,31 +130,31 @@ pub const Game = struct {
                 try day3.on_render(self);
             },
             .day4 => {
-                day4.on_render(self);
+                try day4.on_render(self);
             },
             .day5 => {
-                day5.on_render(self);
+                try day5.on_render(self);
             },
             .day6 => {
-                day6.on_render(self);
+                try day6.on_render(self);
             },
             .day7 => {
-                day7.on_render(self);
+                try day7.on_render(self);
             },
             .day8 => {
-                day8.on_render(self);
+                try day8.on_render(self);
             },
             .day9 => {
                 day9.on_render(self);
             },
             .day10 => {
-                day10.on_render(self);
+                try day10.on_render(self);
             },
             .day11 => {
-                day11.on_render(self);
+                try day11.on_render(self);
             },
             .day12 => {
-                day12.on_render(self);
+                try day12.on_render(self);
             },
             .menu => {
                 try self.tui.draw(&self.e.renderer, self.window, 0, 0, self.state);

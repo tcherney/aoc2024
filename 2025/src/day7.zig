@@ -192,7 +192,7 @@ const std = @import("std");
 const common = @import("common");
 
 var scratch_buffer: [1024]u8 = undefined;
-pub fn on_render(self: anytype) void {
+pub fn on_render(self: anytype) !void {
     //TODO animate beams
     const str = try std.fmt.bufPrint(&scratch_buffer, "Day 7\nPart 1: {d}\nPart 2: {d}", .{ part1, part2 });
     self.e.renderer.ascii.draw_text(str, 5, 0, common.Colors.GREEN, self.window);
@@ -211,7 +211,7 @@ pub fn update(self: anytype) !void {
             try init(self);
         },
         .part1 => {
-            try day7_p1();
+            try day7_p1(self);
         },
         .part2 => {
             try day7_p2();
@@ -294,18 +294,18 @@ pub fn dfs_trace_beam(p: Point) !usize {
             return dp.get(p).?;
         }
         if (board.items[(p.y + 1) * w + p.x] == '^') {
-            const left = if (p.x > 0 and board.items[(p.y + 1) * w + p.x - 1] == '.') try dfs_trace_beam(board, w, h, .{
+            const left = if (p.x > 0 and board.items[(p.y + 1) * w + p.x - 1] == '.') try dfs_trace_beam(.{
                 .x = p.x - 1,
                 .y = (p.y + 1),
             }) else 0;
-            const right = if (p.x < w and board.items[(p.y + 1) * w + p.x + 1] == '.') try dfs_trace_beam(board, w, h, .{
+            const right = if (p.x < w and board.items[(p.y + 1) * w + p.x + 1] == '.') try dfs_trace_beam(.{
                 .x = p.x + 1,
                 .y = (p.y + 1),
             }) else 0;
             const res = left + right;
             try dp.put(p, res);
         } else {
-            const res = try dfs_trace_beam(board, w, h, .{
+            const res = try dfs_trace_beam(.{
                 .x = p.x,
                 .y = (p.y + 1),
             });

@@ -143,7 +143,55 @@ const common = @import("common");
 
 var scratch_buffer: [1024]u8 = undefined;
 //TODO have to figure this out
-pub fn init(self: anytype) !void {}
+pub fn init(self: anytype) !void {
+    const f = try std.fs.cwd().openFile("inputs/day9/input.txt", .{});
+    defer f.close();
+    var buf: [65536]u8 = undefined;
+    lines = std.ArrayList(Line).init(self.allocator);
+
+    var first: ?Point = null;
+    var prev: Point = undefined;
+    min_bound = .{ .x = 0, .y = 0 };
+    max_bound = .{ .x = 0, .y = 0 };
+    y_coord = std.AutoHashMap(u64, std.ArrayList(i64)).init(self.allocator);
+    x_coord = std.AutoHashMap(u64, std.ArrayList(i64)).init(self.allocator);
+    while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |unfiltered| {
+        var line = unfiltered;
+        if (std.mem.indexOfScalar(u8, unfiltered, '\r')) |indx| {
+            line = unfiltered[0..indx];
+        }
+        if (line.len == 0) continue;
+        var iter = std.mem.splitScalar(u8, line, ',');
+        const new_point = Point{
+            .x = try std.fmt.parseFloat(f64, iter.next().?),
+            .y = try std.fmt.parseFloat(f64, iter.next().?),
+        };
+        if (first == null) {
+            first = new_point;
+            min_bound.x = new_point.x;
+            min_bound.y = new_point.y;
+            max_bound.x = new_point.x;
+            max_bound.y = new_point.x;
+        } else {
+            min_bound.x = @min(min_bound.x, new_point.x);
+            min_bound.y = @min(min_bound.y, new_point.y);
+            max_bound.x = @max(max_bound.x, new_point.x);
+            max_bound.y = @max(max_bound.y, new_point.y);
+            try lines.append(.{
+                .p1 = prev,
+                .p2 = new_point,
+            });
+            try add_point_list(self.allocator, prev, new_point);
+        }
+
+        prev = new_point;
+    }
+    try lines.append(.{
+        .p1 = prev,
+        .p2 = first.?,
+    });
+    try add_point_list(self.allocator, prev, first.?);
+}
 
 pub const Point = struct {
     x: f64,
@@ -260,7 +308,7 @@ pub fn update(self: anytype) !void {
             try day9_p1();
         },
         .part2 => {
-            try day9_p2();
+            try day9_p2(self);
         },
         else => {},
     }
@@ -294,6 +342,8 @@ var y_coord: std.AutoHashMap(u64, std.ArrayList(i64)) = undefined;
 var state: RunningState = .init;
 var part1: u64 = 0;
 var part2: u64 = 0;
+var min_bound: Point = undefined;
+var max_bound: Point = undefined;
 
 pub fn on_render(self: anytype) void {
     //TODO highlight rectangles as they are checked
@@ -326,10 +376,8 @@ pub fn on_render(self: anytype) void {
 }
 
 pub fn deinit(self: anytype) void {
-    if (part1) {
+    if (state != .init) {
         points.deinit();
-    }
-    if (part2) {
         lines.deinit();
         self.allocator.free(world);
         var iter = x_coord.iterator();
@@ -437,15 +485,6 @@ pub fn max_area2(allocator: std.mem.Allocator) !u64 {
                 }
             }
             return a.area;
-            // const min_x = a.top_left.x + 1;
-            // const max_x = a.top_right.x - 1;
-            // const min_y = a.top_left.y + 1;
-            // const max_y = a.bottom_right.y - 1;
-            // if (binary_search(y_coord.get(@intFromFloat(min_x)) orelse continue, min_y) != binary_search(y_coord.get(@intFromFloat(min_x)) orelse continue, max_y)) continue;
-            // if (binary_search(y_coord.get(@intFromFloat(max_x)) orelse continue, min_y) != binary_search(y_coord.get(@intFromFloat(max_x)) orelse continue, max_y)) continue;
-            // if (binary_search(x_coord.get(@intFromFloat(min_y)) orelse continue, min_x) != binary_search(x_coord.get(@intFromFloat(min_y)) orelse continue, max_x)) continue;
-            // if (binary_search(x_coord.get(@intFromFloat(max_y)) orelse continue, min_x) != binary_search(x_coord.get(@intFromFloat(max_y)) orelse continue, max_x)) continue;
-            // return a.area;
         }
     }
     return areas.items[0].area;
@@ -506,54 +545,6 @@ pub fn add_point_list(allocator: std.mem.Allocator, p1: Point, p2: Point) !void 
 }
 
 pub fn day9_p2(self: anytype) !void {
-    part2 = true;
-    const f = try std.fs.cwd().openFile("inputs/day9/input.txt", .{});
-    defer f.close();
-    var buf: [65536]u8 = undefined;
-    lines = std.ArrayList(Line).init(self.allocator);
-
-    var first: ?Point = null;
-    var prev: Point = undefined;
-    var min_bound: Point = .{ .x = 0, .y = 0 };
-    var max_bound: Point = .{ .x = 0, .y = 0 };
-    y_coord = std.AutoHashMap(u64, std.ArrayList(i64)).init(self.allocator);
-    x_coord = std.AutoHashMap(u64, std.ArrayList(i64)).init(self.allocator);
-    while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |unfiltered| {
-        var line = unfiltered;
-        if (std.mem.indexOfScalar(u8, unfiltered, '\r')) |indx| {
-            line = unfiltered[0..indx];
-        }
-        if (line.len == 0) continue;
-        var iter = std.mem.splitScalar(u8, line, ',');
-        const new_point = Point{
-            .x = try std.fmt.parseFloat(f64, iter.next().?),
-            .y = try std.fmt.parseFloat(f64, iter.next().?),
-        };
-        if (first == null) {
-            first = new_point;
-            min_bound.x = new_point.x;
-            min_bound.y = new_point.y;
-            max_bound.x = new_point.x;
-            max_bound.y = new_point.x;
-        } else {
-            min_bound.x = @min(min_bound.x, new_point.x);
-            min_bound.y = @min(min_bound.y, new_point.y);
-            max_bound.x = @max(max_bound.x, new_point.x);
-            max_bound.y = @max(max_bound.y, new_point.y);
-            try lines.append(.{
-                .p1 = prev,
-                .p2 = new_point,
-            });
-            try add_point_list(self.allocator, prev, new_point);
-        }
-
-        prev = new_point;
-    }
-    try lines.append(.{
-        .p1 = prev,
-        .p2 = first.?,
-    });
-    try add_point_list(self.allocator, prev, first.?);
     var iter = x_coord.iterator();
     while (iter.next()) |item| {
         std.mem.sort(i64, item.value_ptr.items, {}, comptime std.sort.asc(i64));
@@ -562,7 +553,8 @@ pub fn day9_p2(self: anytype) !void {
     while (iter.next()) |item| {
         std.mem.sort(i64, item.value_ptr.items, {}, comptime std.sort.asc(i64));
     }
-    std.debug.print("Max area of rectangle {d}\n", .{try max_area2(self.allocator)});
+    part2 = try max_area2(self.allocator);
+    std.debug.print("Max area of rectangle {d}\n", .{part2});
     if (max_bound.x > 1000) {
         max_bound.x = 1000;
         max_bound.y = 1000;
@@ -573,8 +565,8 @@ pub fn day9_p2(self: anytype) !void {
     std.debug.print("Width {d}, {d}\n Height {d}, {d}\n", .{ width, self.window.width, height, self.window.height });
 }
 
-pub fn max_area() f64 {
-    var area: f64 = 0;
+pub fn max_area() u64 {
+    var area: u64 = 0;
     for (0..points.items.len) |i| {
         for (i + 1..points.items.len) |j| {
             //std.debug.print("P1 ({d},{d}) P2 ({d}, {d})\n", .{ points.items[i].x, points.items[i].y, points.items[j].x, points.items[j].y });
@@ -584,23 +576,7 @@ pub fn max_area() f64 {
     return area;
 }
 
-pub fn day9_p1(self: anytype) !void {
-    part1 = true;
-    const f = try std.fs.cwd().openFile("inputs/day9/input.txt", .{});
-    defer f.close();
-    var buf: [65536]u8 = undefined;
-    points = std.ArrayList(Point).init(self.allocator);
-    while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |unfiltered| {
-        var line = unfiltered;
-        if (std.mem.indexOfScalar(u8, unfiltered, '\r')) |indx| {
-            line = unfiltered[0..indx];
-        }
-        if (line.len == 0) continue;
-        var iter = std.mem.splitScalar(u8, line, ',');
-        try points.append(.{
-            .x = try std.fmt.parseInt(f64, iter.next().?),
-            .y = try std.fmt.parseInt(f64, iter.next().?),
-        });
-    }
-    std.debug.print("Max area of rectangle {d}\n", .{max_area(points)});
+pub fn day9_p1() !void {
+    part1 = max_area();
+    std.debug.print("Max area of rectangle {d}\n", .{part1});
 }

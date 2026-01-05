@@ -86,7 +86,7 @@ const std = @import("std");
 const common = @import("common");
 
 var scratch_buffer: [1024]u8 = undefined;
-pub fn on_render(self: anytype) void {
+pub fn on_render(self: anytype) !void {
     //TODO just output the text of the answer
     const str = try std.fmt.bufPrint(&scratch_buffer, "Day 12\nPart 1: {d}", .{part1});
     self.e.renderer.ascii.draw_text(str, 5, 0, common.Colors.GREEN, self.window);
@@ -118,7 +118,7 @@ pub const RunningState = enum {
     done,
 };
 
-var state: RunningState = .init;
+var state: RunningState = .run;
 var part1: u64 = 0;
 
 pub fn day12_p1() !void {

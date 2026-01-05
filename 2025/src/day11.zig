@@ -74,7 +74,7 @@ const std = @import("std");
 const common = @import("common");
 
 var scratch_buffer: [1024]u8 = undefined;
-pub fn on_render(self: anytype) void {
+pub fn on_render(self: anytype) !void {
     //TODO could show paths as we go through and highlight the fft/dac names in the path like the example
     const str = try std.fmt.bufPrint(&scratch_buffer, "Day 11\nPart 1: {d}\nPart 2: {d}", .{ part1, part2 });
     self.e.renderer.ascii.draw_text(str, 5, 0, common.Colors.GREEN, self.window);
@@ -286,7 +286,7 @@ pub const Graph = struct {
                 }
             } else {
                 try self.nodes.append(.{
-                    .name = try self.allocator.dupe(u8, start),
+                    .name = try self.allocator.dupe(u8, s),
                     .edges = std.ArrayList(Edge).init(self.allocator),
                     .indx = self.nodes.items.len,
                 });

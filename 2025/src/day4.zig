@@ -41,7 +41,7 @@ const std = @import("std");
 const common = @import("common");
 
 var scratch_buffer: [1024]u8 = undefined;
-pub fn on_render(self: anytype) void {
+pub fn on_render(self: anytype) !void {
     //TODO show exploration of space, either with color or drawing it all
     const str = try std.fmt.bufPrint(&scratch_buffer, "Day 4\nPart 1: {d}\nPart 2: {d}", .{ part1, part2 });
     self.e.renderer.ascii.draw_text(str, 5, 0, common.Colors.GREEN, self.window);
@@ -122,16 +122,16 @@ pub fn day4_p2() !void {
             for (0..w) |j| {
                 if (grid.items[i * w + j] == '@') {
                     var num_adj: u32 = 0;
-                    const i_i64: i64 = @bitCast(i);
-                    const j_i64: i64 = @bitCast(j);
-                    if (at(grid, w, h, i_i64 - 1, j_i64 - 1) == '@') num_adj += 1;
-                    if (at(grid, w, h, i_i64 - 1, j_i64) == '@') num_adj += 1;
-                    if (at(grid, w, h, i_i64 - 1, j_i64 + 1) == '@') num_adj += 1;
-                    if (at(grid, w, h, i_i64, j_i64 - 1) == '@') num_adj += 1;
-                    if (at(grid, w, h, i_i64, j_i64 + 1) == '@') num_adj += 1;
-                    if (at(grid, w, h, i_i64 + 1, j_i64 - 1) == '@') num_adj += 1;
-                    if (at(grid, w, h, i_i64 + 1, j_i64) == '@') num_adj += 1;
-                    if (at(grid, w, h, i_i64 + 1, j_i64 + 1) == '@') num_adj += 1;
+                    const i_i64: i64 = @bitCast(@as(u64, @intCast(i)));
+                    const j_i64: i64 = @bitCast(@as(u64, @intCast(j)));
+                    if (at(i_i64 - 1, j_i64 - 1) == '@') num_adj += 1;
+                    if (at(i_i64 - 1, j_i64) == '@') num_adj += 1;
+                    if (at(i_i64 - 1, j_i64 + 1) == '@') num_adj += 1;
+                    if (at(i_i64, j_i64 - 1) == '@') num_adj += 1;
+                    if (at(i_i64, j_i64 + 1) == '@') num_adj += 1;
+                    if (at(i_i64 + 1, j_i64 - 1) == '@') num_adj += 1;
+                    if (at(i_i64 + 1, j_i64) == '@') num_adj += 1;
+                    if (at(i_i64 + 1, j_i64 + 1) == '@') num_adj += 1;
                     if (num_adj < 4) {
                         grid.items[i * w + j] = 'x';
                         part2 += 1;
@@ -146,7 +146,7 @@ pub fn day4_p2() !void {
 
 pub fn at(i: i64, j: i64) u8 {
     if (j >= 0 and j < w and i >= 0 and i < h) {
-        return grid.items[@as(usize, @bitCast(i)) * w + @as(usize, @bitCast(j))];
+        return grid.items[@as(usize, @intCast(@as(u64, @bitCast(i)))) * w + @as(usize, @intCast(@as(u64, @bitCast(j))))];
     }
 
     return 0;
@@ -157,16 +157,16 @@ pub fn day4_p1() !void {
         for (0..w) |j| {
             if (grid.items[i * w + j] == '@') {
                 var num_adj: u32 = 0;
-                const i_i64: i64 = @bitCast(i);
-                const j_i64: i64 = @bitCast(j);
-                if (at(grid, w, h, i_i64 - 1, j_i64 - 1) == '@') num_adj += 1;
-                if (at(grid, w, h, i_i64 - 1, j_i64) == '@') num_adj += 1;
-                if (at(grid, w, h, i_i64 - 1, j_i64 + 1) == '@') num_adj += 1;
-                if (at(grid, w, h, i_i64, j_i64 - 1) == '@') num_adj += 1;
-                if (at(grid, w, h, i_i64, j_i64 + 1) == '@') num_adj += 1;
-                if (at(grid, w, h, i_i64 + 1, j_i64 - 1) == '@') num_adj += 1;
-                if (at(grid, w, h, i_i64 + 1, j_i64) == '@') num_adj += 1;
-                if (at(grid, w, h, i_i64 + 1, j_i64 + 1) == '@') num_adj += 1;
+                const i_i64: i64 = @bitCast(@as(u64, @intCast(i)));
+                const j_i64: i64 = @bitCast(@as(u64, @intCast(j)));
+                if (at(i_i64 - 1, j_i64 - 1) == '@') num_adj += 1;
+                if (at(i_i64 - 1, j_i64) == '@') num_adj += 1;
+                if (at(i_i64 - 1, j_i64 + 1) == '@') num_adj += 1;
+                if (at(i_i64, j_i64 - 1) == '@') num_adj += 1;
+                if (at(i_i64, j_i64 + 1) == '@') num_adj += 1;
+                if (at(i_i64 + 1, j_i64 - 1) == '@') num_adj += 1;
+                if (at(i_i64 + 1, j_i64) == '@') num_adj += 1;
+                if (at(i_i64 + 1, j_i64 + 1) == '@') num_adj += 1;
                 if (num_adj < 4) {
                     part1 += 1;
                 }

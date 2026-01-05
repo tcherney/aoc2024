@@ -53,7 +53,7 @@ const std = @import("std");
 const common = @import("common");
 
 var scratch_buffer: [1024]u8 = undefined;
-pub fn on_render(self: anytype) void {
+pub fn on_render(self: anytype) !void {
     //TODO as boxes are connected show consolidated ids
     const str = try std.fmt.bufPrint(&scratch_buffer, "Day 8\nPart 1: {d}\nPart 2: {d}", .{ part1, part2 });
     self.e.renderer.ascii.draw_text(str, 5, 0, common.Colors.GREEN, self.window);
@@ -159,13 +159,13 @@ pub const Distance = struct {
 pub const Circuits = std.AutoHashMap(usize, std.ArrayList(*JunctionPoint));
 
 pub fn min_dist() !void {
-    for (0..points.len) |i| {
-        for (i + 1..points.len) |j| {
-            const dist = points[i].dist(points[j]);
+    for (0..points.items.len) |i| {
+        for (i + 1..points.items.len) |j| {
+            const dist = points.items[i].dist(points.items[j]);
             try distances.append(.{
                 .magnitude = dist,
-                .p1 = &points[i],
-                .p2 = &points[j],
+                .p1 = &points.items[i],
+                .p2 = &points.items[j],
             });
         }
     }
@@ -245,7 +245,7 @@ pub fn connect_points_p2(num_points: usize) !usize {
 }
 
 pub fn day8_p2() !void {
-    part2 = try connect_points_p2(distances, &circuits, points.items.len);
+    part2 = try connect_points_p2(points.items.len);
     std.debug.print("Need extension cable of {d}\n", .{part2});
     var iter = circuits.iterator();
     while (iter.next()) |i| {
@@ -255,7 +255,7 @@ pub fn day8_p2() !void {
 
 pub fn day8_p1() !void {
     const num_connections = 1000;
-    part1 = try connect_points_p1(distances, &circuits, num_connections);
+    part1 = try connect_points_p1(num_connections);
     std.debug.print("Three largest multiplied together {d}\n", .{part1});
     var iter = circuits.iterator();
     while (iter.next()) |i| {

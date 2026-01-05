@@ -47,16 +47,20 @@
 const std = @import("std");
 const common = @import("common");
 
-//TODO this will also have to be redone
 var scratch_buffer: [1024]u8 = undefined;
-pub fn on_render(self: anytype) void {
+pub fn on_render(self: anytype) !void {
     //TODO animate machine lights as they are solved
     const str = try std.fmt.bufPrint(&scratch_buffer, "Day 10\nPart 1: {d}\nPart 2: {d}", .{ part1, part2 });
     self.e.renderer.ascii.draw_text(str, 5, 0, common.Colors.GREEN, self.window);
 }
 
 pub fn deinit(_: anytype) void {
-    if (state != .init) {}
+    if (state != .init) {
+        for (0..machines.items.len) |i| {
+            machines.items[i].deinit();
+        }
+        machines.deinit();
+    }
 }
 
 pub fn update(self: anytype) !void {
@@ -75,30 +79,55 @@ pub fn update(self: anytype) !void {
 }
 
 pub fn init(self: anytype) !void {
-    const f = try std.fs.cwd().openFile("inputs/day5/input.txt", .{});
+    const f = try std.fs.cwd().openFile("inputs/day10/input.txt", .{});
     defer f.close();
     var buf: [65536]u8 = undefined;
-    ranges = std.ArrayList(Range).init(self.allocator);
-    ingredients = std.ArrayList(usize).init(self.allocator);
+    machines = std.ArrayList(Machine).init(self.allocator);
     while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |unfiltered| {
         var line = unfiltered;
         if (std.mem.indexOfScalar(u8, unfiltered, '\r')) |indx| {
             line = unfiltered[0..indx];
         }
-        if (line.len == 0) continue;
-        if (std.mem.indexOfScalar(u8, line, '-') != null) {
-            std.debug.print("{s}\n", .{line});
-            var it = std.mem.splitScalar(u8, line, '-');
-            try ranges.append(.{ .start = try std.fmt.parseInt(usize, it.next().?, 10), .end = try std.fmt.parseInt(usize, it.next().?, 10) });
-        } else {
-            try ingredients.append(try std.fmt.parseInt(usize, line, 10));
+        if (line.len == 0) break;
+        const start_light = std.mem.indexOfScalar(u8, line, '[') orelse continue;
+        const end_light = std.mem.indexOfScalar(u8, line, ']') orelse continue;
+        var machine = Machine.init(self.allocator);
+        const lights = line[start_light + 1 .. end_light];
+        var light: u64 = 0;
+        var offset: u64 = 1;
+        for (lights) |l| {
+            if (l == '#') {
+                light |= offset;
+            }
+            offset <<= 1;
         }
+        machine.lights = light;
+        var curr_indx = end_light + 1;
+        while (std.mem.indexOfScalarPos(u8, line, curr_indx, '(')) |bracket| {
+            const other_bracket = std.mem.indexOfScalarPos(u8, line, bracket, ')').?;
+            var iter = std.mem.splitScalar(u8, line[bracket + 1 .. other_bracket], ',');
+            var button_v2 = std.ArrayList(u64).init(self.allocator);
+            var button: u64 = 0;
+            while (iter.next()) |n| {
+                try button_v2.append(try std.fmt.parseInt(u64, n, 10));
+                button |= @as(u64, 1) << (try std.fmt.parseInt(u6, n, 10));
+            }
+            try machine.buttons_v1.append(button);
+            try machine.buttons_v2.append(button_v2);
+            curr_indx = other_bracket + 1;
+        }
+
+        while (std.mem.indexOfScalarPos(u8, line, curr_indx, '{')) |bracket| {
+            const other_bracket = std.mem.indexOfScalarPos(u8, line, bracket, '}').?;
+            var iter = std.mem.splitScalar(u8, line[bracket + 1 .. other_bracket], ',');
+            while (iter.next()) |n| {
+                try machine.joltages.append(try std.fmt.parseInt(u64, n, 10));
+            }
+            curr_indx = other_bracket + 1;
+        }
+        try machines.append(machine);
     }
-    std.mem.sort(Range, ranges.items, {}, struct {
-        pub fn compare(_: void, lhs: Range, rhs: Range) bool {
-            return if (lhs.start == rhs.start) lhs.end < rhs.end else lhs.start < rhs.start;
-        }
-    }.compare);
+    state = .part1;
 }
 
 pub fn start(_: anytype) void {
@@ -122,42 +151,36 @@ pub const RunningState = enum {
 var state: RunningState = .init;
 var part1: u64 = 0;
 var part2: u64 = 0;
+var machines: std.ArrayList(Machine) = undefined;
+
+pub const ButtonType = struct {
+    pub const V1 = std.ArrayList(u64);
+    pub const V2 = std.ArrayList(std.ArrayList(u64));
+};
 
 pub const Machine = struct {
     lights: u64,
-    buttons: std.ArrayList(u64),
+    buttons_v1: ButtonType.V1,
+    buttons_v2: ButtonType.V2,
+    joltages: std.ArrayList(u64),
     allocator: std.mem.Allocator,
 
     pub fn init(allocator: std.mem.Allocator) Machine {
         return .{
             .lights = 0,
-            .buttons = std.ArrayList(u64).init(allocator),
-            .allocator = allocator,
-        };
-    }
-    pub fn deinit(self: *Machine) void {
-        self.buttons.deinit();
-    }
-};
-
-pub const MachineV2 = struct {
-    buttons: std.ArrayList(std.ArrayList(u64)),
-    joltages: std.ArrayList(u64),
-    allocator: std.mem.Allocator,
-
-    pub fn init(allocator: std.mem.Allocator) MachineV2 {
-        return .{
-            .buttons = std.ArrayList(std.ArrayList(u64)).init(allocator),
+            .buttons_v1 = ButtonType.V1.init(allocator),
+            .buttons_v2 = ButtonType.V2.init(allocator),
             .joltages = std.ArrayList(u64).init(allocator),
             .allocator = allocator,
         };
     }
-    pub fn deinit(self: *MachineV2) void {
+    pub fn deinit(self: *Machine) void {
         self.joltages.deinit();
-        for (self.buttons.items) |b| {
+        for (self.buttons_v2.items) |b| {
             b.deinit();
         }
-        self.buttons.deinit();
+        self.buttons_v1.deinit();
+        self.buttons_v2.deinit();
     }
 
     pub fn find(items: std.ArrayList(u64), val: u64) bool {
@@ -213,8 +236,8 @@ pub const MachineV2 = struct {
         }
     }
 
-    pub fn solve(self: *const MachineV2) !u64 {
-        const cols = self.buttons.items.len + 1;
+    pub fn solve(self: *const Machine) !u64 {
+        const cols = self.buttons_v2.items.len + 1;
         const rows = self.joltages.items.len;
         var mat = try self.allocator.alloc([]i128, rows);
         defer self.allocator.free(mat);
@@ -223,7 +246,7 @@ pub const MachineV2 = struct {
             for (0..cols) |c| {
                 if (c == cols - 1) {
                     mat[r][c] = @intCast(@as(i64, @bitCast(self.joltages.items[r])));
-                } else if (find(self.buttons.items[c], r)) {
+                } else if (find(self.buttons_v2.items[c], r)) {
                     mat[r][c] = 1;
                 } else {
                     mat[r][c] = 0;
@@ -358,17 +381,9 @@ pub const MachineV2 = struct {
     }
 };
 
-pub const State = struct {
-    state: u64,
-    buttons_left: std.ArrayList(u64),
-    cost: u64,
-};
-
-pub const Queue = std.ArrayList(State);
-
-pub fn min_pressesv2(machine: Machine) !u64 {
-    for (1..machine.buttons.items.len) |presses| {
-        var combos = try common.itertools.combinations(u64, machine.allocator, machine.buttons.items, presses);
+pub fn min_presses(machine: Machine) !u64 {
+    for (1..machine.buttons_v1.items.len) |presses| {
+        var combos = try common.itertools.combinations(u64, machine.allocator, machine.buttons_v1.items, presses);
         defer {
             for (0..combos.items.len) |i| {
                 combos.items[i].deinit();
@@ -377,13 +392,13 @@ pub fn min_pressesv2(machine: Machine) !u64 {
         }
         //std.debug.print("Combos\n", .{});
         for (combos.items) |c| {
-            var state: u64 = 0;
+            var light_state: u64 = 0;
             for (c.items) |b| {
                 //std.debug.print("{d} ", .{b});
-                state ^= b;
+                light_state ^= b;
             }
             //std.debug.print("\n", .{});
-            if (state == machine.lights) {
+            if (light_state == machine.lights) {
                 return c.items.len;
             }
         }
@@ -391,150 +406,22 @@ pub fn min_pressesv2(machine: Machine) !u64 {
     return 100000;
 }
 
-pub fn min_presses(machine: Machine) !u64 {
-    var q = Queue.init(machine.allocator);
-    defer {
-        for (0..q.items.len) |i| {
-            q.items[i].buttons_left.deinit();
-        }
-        q.deinit();
-    }
-    const starting_buttons = try machine.buttons.clone();
-    try q.append(State{
-        .state = 0,
-        .buttons_left = starting_buttons,
-        .cost = 0,
-    });
-    var visited = std.AutoHashMap(u64, bool).init(machine.allocator);
-    defer visited.deinit();
-    while (q.items.len > 0) {
-        const s = q.orderedRemove(0);
-        defer s.buttons_left.deinit();
-        if (s.state == machine.lights) {
-            return s.cost;
-        }
-        try visited.put(s.state, true);
-        for (s.buttons_left.items) |b| {
-            const new_state = s.state ^ b;
-            if (visited.get(new_state) == null) {
-                var new_buttons = try s.buttons_left.clone();
-                for (0..new_buttons.items.len) |i| {
-                    if (new_buttons.items[i] == b) {
-                        _ = new_buttons.swapRemove(i);
-                        //std.debug.print("Removed {d}\n", .{i});
-                        break;
-                    }
-                }
-                try q.append(.{
-                    .state = new_state,
-                    .buttons_left = new_buttons,
-                    .cost = s.cost + 1,
-                });
-            }
-        }
-    }
-    return std.math.maxInt(u64);
-}
-
 //TODO use fast method similar to part 1 https://www.reddit.com/r/adventofcode/comments/1pk87hl/comment/ntp4njq/
-pub fn day10_p2(self: anytype) !void {
-    const f = try std.fs.cwd().openFile("inputs/day10/input.txt", .{});
-    defer f.close();
-    var buf: [65536]u8 = undefined;
-    var machines = std.ArrayList(MachineV2).init(self.allocator);
-    defer machines.deinit();
-    while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |unfiltered| {
-        var line = unfiltered;
-        if (std.mem.indexOfScalar(u8, unfiltered, '\r')) |indx| {
-            line = unfiltered[0..indx];
-        }
-        if (line.len == 0) break;
-        var machine = MachineV2.init(self.allocator);
-        var curr_indx: usize = 0;
-        while (std.mem.indexOfScalarPos(u8, line, curr_indx, '(')) |bracket| {
-            const other_bracket = std.mem.indexOfScalarPos(u8, line, bracket, ')').?;
-            var iter = std.mem.splitScalar(u8, line[bracket + 1 .. other_bracket], ',');
-            var button = std.ArrayList(u64).init(self.allocator);
-            while (iter.next()) |n| {
-                try button.append(try std.fmt.parseInt(u64, n, 10));
-            }
-            try machine.buttons.append(button);
-            curr_indx = other_bracket + 1;
-        }
-
-        while (std.mem.indexOfScalarPos(u8, line, curr_indx, '{')) |bracket| {
-            const other_bracket = std.mem.indexOfScalarPos(u8, line, bracket, '}').?;
-            var iter = std.mem.splitScalar(u8, line[bracket + 1 .. other_bracket], ',');
-            while (iter.next()) |n| {
-                try machine.joltages.append(try std.fmt.parseInt(u64, n, 10));
-            }
-            curr_indx = other_bracket + 1;
-        }
-        try machines.append(machine);
-    }
-    var fewest_presses: u64 = 0;
-    var j: usize = 0;
+pub fn day10_p2() !void {
+    part2 = 0;
     try common.timer_start();
     for (machines.items) |m| {
-        //std.debug.print("Machine {d}\n", .{j});
-        j += 1;
-        fewest_presses += try m.solve();
+        part2 += try m.solve();
     }
-    for (0..machines.items.len) |i| {
-        machines.items[i].deinit();
-    }
-    std.debug.print("Fewest possible presses: {d}\nIn {d} seconds.\n", .{ fewest_presses, common.timer_end() });
+
+    std.debug.print("Fewest possible presses: {d}\nIn {d} seconds.\n", .{ part2, common.timer_end() });
 }
 
-pub fn day10_p1(self: anytype) !void {
-    const f = try std.fs.cwd().openFile("inputs/day10/input.txt", .{});
-    defer f.close();
-    var buf: [65536]u8 = undefined;
-    var machines = std.ArrayList(Machine).init(self.allocator);
-    defer machines.deinit();
-    while (try f.reader().readUntilDelimiterOrEof(&buf, '\n')) |unfiltered| {
-        var line = unfiltered;
-        if (std.mem.indexOfScalar(u8, unfiltered, '\r')) |indx| {
-            line = unfiltered[0..indx];
-        }
-        if (line.len == 0) break;
-        const start_light = std.mem.indexOfScalar(u8, line, '[') orelse continue;
-        const end_light = std.mem.indexOfScalar(u8, line, ']') orelse continue;
-        var machine = Machine.init(self.allocator);
-        const lights = line[start_light + 1 .. end_light];
-        var light: u64 = 0;
-        var offset: u64 = 1;
-        for (lights) |l| {
-            if (l == '#') {
-                light |= offset;
-            }
-            offset <<= 1;
-        }
-        machine.lights = light;
-        var curr_indx = end_light + 1;
-        while (std.mem.indexOfScalarPos(u8, line, curr_indx, '(')) |bracket| {
-            const other_bracket = std.mem.indexOfScalarPos(u8, line, bracket, ')').?;
-            var iter = std.mem.splitScalar(u8, line[bracket + 1 .. other_bracket], ',');
-            var button: u64 = 0;
-            while (iter.next()) |n| {
-                button |= @as(u64, 1) << (try std.fmt.parseInt(u6, n, 10));
-            }
-            try machine.buttons.append(button);
-            curr_indx = other_bracket + 1;
-        }
-
-        try machines.append(machine);
-    }
-    var fewest_presses: u64 = 0;
-    var j: usize = 0;
+pub fn day10_p1() !void {
+    part1 = 0;
     try common.timer_start();
     for (machines.items) |m| {
-        //std.debug.print("Machine {d}\n", .{j});
-        j += 1;
-        fewest_presses += try min_pressesv2(m);
+        part1 += try min_presses(m);
     }
-    for (0..machines.items.len) |i| {
-        machines.items[i].deinit();
-    }
-    std.debug.print("Fewest possible presses: {d}\nIn {d} seconds.\n", .{ fewest_presses, common.timer_end() });
+    std.debug.print("Fewest possible presses: {d}\nIn {d} seconds.\n", .{ part1, common.timer_end() });
 }
